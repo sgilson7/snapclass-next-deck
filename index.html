@@ -1,0 +1,1686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How SnapClass is being rebuilt as a protected core of services plus mods, and how the team writes, tests, reviews and releases code in it.">
+<title>SnapClass Next for Developers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* The dev-team deck (T33), built by tools/guide/build.py from devteam.tpl.html.
+   Same deck structure as the advisor's meeting page (after WebSlides): one section
+   per slide, one visualization or table per slide, every bullet takes a comment
+   where claude.ai offers comments. */
+:root {
+  --bg: #fbfcfc; --panel: #ffffff; --fg: #1c2629; --muted: #5a6a6e; --line: #d6dfe0;
+  --accent: #0f6b6b; --mark: #a8521b; --ask-line: #d9a441; --ok: #2f7d4f; --bg2: #f1f5f5;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121819; --panel: #182123; --fg: #e2eaea; --muted: #9db0b2; --line: #2b3a3d;
+  --accent: #6cc4c0; --mark: #f0a46d; --ask-line: #c99a3a; --ok: #7fcf9c; --bg2: #1b2527; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121819; --panel: #182123; --fg: #e2eaea; --muted: #9db0b2; --line: #2b3a3d;
+  --accent: #6cc4c0; --mark: #f0a46d; --ask-line: #c99a3a; --ok: #7fcf9c; --bg2: #1b2527; color-scheme: dark }
+/* Request-lifecycle animation. Uses the host page's --bg --panel --fg --muted
+   --line --accent tokens; adds its own for the four kinds of mark. */
+:root {
+  --fx-req: #2b62a0; --fx-res: #2f7d4f; --fx-stream: #b8452f; --fx-msg: #7a4fb0;
+  --fx-on: #fff4c9; --fx-on-line: #c79a12; --fx-code-bg: #f7f8f5; --fx-lit: #fdeeb5;
+  --fx-zone-a: rgba(43, 98, 160, .06); --fx-zone-b: rgba(47, 125, 79, .07);
+  --fx-zone-c: rgba(122, 79, 176, .07); --fx-zone-d: rgba(184, 69, 47, .06);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --fx-req: #86b2e4; --fx-res: #7fcf9c; --fx-stream: #ec8b74; --fx-msg: #c3a3ef;
+  --fx-on: #3b3415; --fx-on-line: #e0c15a; --fx-code-bg: #11171a; --fx-lit: #3d3516;
+  --fx-zone-a: rgba(134, 178, 228, .08); --fx-zone-b: rgba(127, 207, 156, .08);
+  --fx-zone-c: rgba(195, 163, 239, .08); --fx-zone-d: rgba(236, 139, 116, .08); } }
+:root[data-theme="dark"] {
+  --fx-req: #86b2e4; --fx-res: #7fcf9c; --fx-stream: #ec8b74; --fx-msg: #c3a3ef;
+  --fx-on: #3b3415; --fx-on-line: #e0c15a; --fx-code-bg: #11171a; --fx-lit: #3d3516;
+  --fx-zone-a: rgba(134, 178, 228, .08); --fx-zone-b: rgba(127, 207, 156, .08);
+  --fx-zone-c: rgba(195, 163, 239, .08); --fx-zone-d: rgba(236, 139, 116, .08); }
+
+.fx { display: grid; gap: 10px; min-width: 0; }
+.fx-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.fx-pick button, .fx-ctl button, .fx-ctl select {
+  font: inherit; font-size: .9em; color: var(--fg); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.fx-pick button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.fx button:focus-visible, .fx select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fx-sum { margin: 0; color: var(--muted); }
+.fx-stage { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+@media (max-width: 900px) { .fx-stage { grid-template-columns: minmax(0, 1fr); } }
+.fx-scene { min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); overflow-x: auto; }
+.fx-scene svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.fx-code { margin: 0; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--fx-code-bg); overflow: hidden; }
+.fx-code figcaption { font: 600 .78em var(--mono, ui-monospace, monospace); padding: 8px 10px;
+  border-bottom: 1px solid var(--line); color: var(--muted); overflow-wrap: anywhere; }
+.fx-code pre { margin: 0; padding: 8px 0; overflow: auto; max-height: 420px; flex: 1;
+  font: .74em/1.5 var(--mono, ui-monospace, monospace); color: var(--fg); }
+.fx-row { display: block; padding: 0 10px 0 0; white-space: pre; }
+.fx-lit { background: var(--fx-lit); }
+.fx-ln { display: inline-block; width: 3.6em; padding-right: .8em; text-align: right; color: var(--muted); user-select: none; }
+.fx-now { margin: 0; min-height: 3em; font-size: 1.02em; }
+.fx-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fx-ctl label { color: var(--muted); font-size: .9em; }
+.fx-count { color: var(--muted); font-size: .9em; font-variant-numeric: tabular-nums; }
+.fx-key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: .85em; }
+.fx-key li { display: flex; align-items: center; }
+.fx-list summary { cursor: pointer; color: var(--accent); }
+.fx-list ol { margin: 8px 0 0; padding-left: 1.6em; }
+.fx-jump { all: unset; cursor: pointer; display: block; padding: 2px 0; }
+.fx-jump:focus-visible { outline: 2px solid var(--accent); }
+.fx-cur .fx-jump { font-weight: 600; }
+
+.fx-zone { stroke: var(--line); stroke-dasharray: 4 4; }
+.fx-zone-a { fill: var(--fx-zone-a); } .fx-zone-b { fill: var(--fx-zone-b); }
+.fx-zone-c { fill: var(--fx-zone-c); } .fx-zone-d { fill: var(--fx-zone-d); }
+.fx-zlabel { font: 600 12px var(--body, system-ui, sans-serif); fill: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.fx-edge { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.fx-dash { stroke-dasharray: 5 4; }
+.fx-node rect { fill: var(--panel); stroke: var(--muted); stroke-width: 1.2; }
+.fx-node text { font: 12.5px var(--body, system-ui, sans-serif); fill: var(--fg); }
+.fx-store rect { stroke-dasharray: 0; stroke-width: 2; }
+.fx-ext rect { stroke-dasharray: 5 3; }
+.fx-mod rect { stroke: var(--fx-msg); stroke-width: 1.8; }
+.fx-bus rect { stroke: var(--fx-msg); stroke-width: 2.2; }
+.fx-new rect { stroke: var(--fx-res); stroke-width: 1.8; }
+.fx-chg rect { stroke: var(--fx-stream); stroke-width: 1.8; stroke-dasharray: 6 3; }
+.fx-new rect { fill: color-mix(in srgb, var(--fx-res) 10%, var(--panel)); }
+.fx-on rect { fill: var(--fx-on); stroke: var(--fx-on-line); stroke-width: 2.4; }
+.fx-live { fill: none; stroke-width: 3; opacity: .55; }
+.fx-live-req { stroke: var(--fx-req); } .fx-live-res { stroke: var(--fx-res); }
+.fx-live-stream { stroke: var(--fx-stream); stroke-dasharray: 8 5; } .fx-live-msg { stroke: var(--fx-msg); stroke-dasharray: 2 4; }
+.fx-m { stroke: var(--panel); stroke-width: 1.5; }
+.fx-req { fill: var(--fx-req); } .fx-res { fill: var(--fx-res); }
+.fx-stream { fill: var(--fx-stream); } .fx-msg { fill: var(--fx-msg); }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
+#webslides > section { display: none; max-width: 1180px; margin: 0 auto; padding-block: 28px 110px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#webslides > section.cur { display: block; }
+.eyebrow { font: 600 .78em var(--mono); color: var(--mark); letter-spacing: .06em; text-transform: uppercase; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.kind { font: 600 .9em var(--mono); padding: 1px 7px; border-radius: 4px; border: 1px solid; }
+.kind.measured { color: var(--ok); } .kind.proposed { color: var(--mark); } .kind.background { color: var(--accent); }
+h1 { font: 700 2.5em/1.12 var(--display); margin: 10px 0 14px; text-wrap: balance; max-width: 860px; }
+h2 { font: 700 1.8em/1.2 var(--display); margin: 6px 0 10px; text-wrap: balance; }
+ul.why { margin: 0 0 16px; padding-left: 1.2em; max-width: 900px; font-size: 1.05em; }
+ul.why li { margin: 4px 0; }
+.cm { border-radius: 6px; }
+.cm:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.cbtn { font: 600 .72em var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; padding: 1px 9px; margin-left: 6px; cursor: pointer; vertical-align: 2px; opacity: .5; }
+.cm:hover > .cbtn, .cm:focus-within > .cbtn, .cbtn:focus-visible { opacity: 1; color: var(--accent); border-color: var(--accent); }
+body.no-comments .cbtn, body.no-comments #c-slide { display: none; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.tiles > div { min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--panel); }
+.tiles h4 { margin: 0; font: 600 .74em var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.tiles .big { font: 700 1.5em/1.2 var(--display); margin: 2px 0; }
+.tiles p { margin: 0; font-size: .92em; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 0 0 16px; }
+.cols > div { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; background: var(--panel); }
+.cols > div.new { border-color: var(--accent); }
+.cols h3 { margin: 0 0 6px; font: 700 1.15em var(--display); }
+.cols ul { margin: 0; padding-left: 1.1em; } .cols li { margin: 3px 0; }
+.wrap { overflow-x: auto; margin: 0 0 16px; }
+table.map { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .95em; }
+table.map th, table.map td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+table.map th { font: 600 .74em var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+table.map td:first-child { color: var(--muted); width: 46%; }
+@media (max-width: 640px) { table.map { min-width: 0; } table.map thead { display: none; }
+  table.map tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  table.map td { display: block; width: auto !important; border: 0; padding: 2px 0; }
+  table.map td:first-child::before { content: "Today: "; font-weight: 600; }
+  table.map td + td::before { content: "Next: "; font-weight: 600; color: var(--accent); } }
+pre.code { font-variant-ligatures: none; margin: 0; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; font: .82em/1.5 var(--mono); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; margin: 0 0 16px; align-items: start; }
+@media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } }
+ol.plain { margin: 0; padding-left: 1.3em; } ol.plain li { margin: 5px 0; }
+ol.commits { margin: 4px 0 8px; padding-left: 1.3em; } ol.commits > li { margin: 8px 0; }
+ol.commits > li > code { font-weight: 600; overflow-wrap: anywhere; }
+ol.commits .when { font: .8em var(--mono); color: var(--mark); margin-left: 8px; white-space: nowrap; }
+ul.files { margin: 4px 0 0; padding-left: 1.1em; font-size: .92em; } ul.files li { margin: 2px 0; }
+ul.files code { overflow-wrap: anywhere; }
+p.note { margin: 6px 0 0; font-size: .9em; color: var(--muted); }
+.src { font-size: .85em; color: var(--muted); max-width: 900px; }
+.src a { color: var(--accent); }
+code { font: .88em var(--mono); }
+a { color: var(--accent); }
+.lead { font-size: 1.15em; max-width: 800px; color: var(--muted); margin: 0 0 18px; }
+h3.sub { font: 600 .82em var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 8px; }
+.why-intro { display: grid; gap: 8px; max-width: 840px; font-size: 1.08em; }
+.why-intro p { margin: 0; padding: 2px 6px; }
+.steps { display: grid; gap: 6px; margin: 0; padding-left: 1.4em; max-width: 860px; font-size: 1.04em; }
+.steps li { padding: 4px 8px; }
+.go { font: 600 .78em var(--mono); color: var(--accent); background: var(--panel); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 2px 8px; margin-right: 6px; cursor: pointer; vertical-align: 1px; }
+.go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn { font: 600 .88em var(--body); color: var(--accent); background: var(--panel); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.btn.solid { background: var(--accent); color: var(--bg); }
+[hidden] { display: none !important; }
+.btn:focus-visible, .cbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; gap: 10px; align-items: center; justify-content: center;
+  flex-wrap: wrap; background: var(--bg); border-top: 1px solid var(--line);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.pnav .count { font: .9em var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 5.5em; text-align: center; }
+.credit { color: var(--muted); font-size: .85em; margin-top: 22px; max-width: 800px; }
+@media (max-width: 560px) { h1 { font-size: 1.8em; } h2 { font-size: 1.4em; } }
+</style>
+
+</head>
+<body>
+<article id="webslides">
+  <section id="slide-title" class="cm" data-comment-target>
+    <div class="eyebrow">SnapClass dev team · the rework</div>
+    <h1>SnapClass Next: how it is built, and how we will work in it</h1>
+    <div class="why-intro">
+      <p class="cm" data-comment-target>SnapClass has grown for about ten years, and its architecture now limits what we can add to it. SnapClass Next rebuilds it as a protected core of small services plus mods, and it runs today on Docker Compose and on Kubernetes.<button type="button" class="cbtn">Comment</button></p>
+      <p class="cm" data-comment-target>By the end you should be able to explain what a microservice is, why large online services are built that way, and what writing, testing, reviewing and releasing code for SnapClass will look like.<button type="button" class="cbtn">Comment</button></p>
+    </div>
+    <h3 class="sub">The talk</h3>
+    <ol class="steps">
+      <li class="cm" data-comment-target><button type="button" class="go" data-to="2">2</button> SnapClass today, and how ten years shaped it<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><button type="button" class="go" data-to="5">5</button> Microservices: what they are, and why online services use them<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><button type="button" class="go" data-to="7">7</button> SnapClass Next, and what it fixes<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><button type="button" class="go" data-to="9">9</button> The core team, mods, and writing a mod<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><button type="button" class="go" data-to="11">11</button> Testing, one-touch releases, and smoke before prod<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><button type="button" class="go" data-to="14">14</button> Working in the repository: branches, pull requests, commits, and an example of restructuring one<button type="button" class="cbtn">Comment</button></li>
+    </ol>
+    <p class="credit" data-uncommentable>Sam Gilson, Game2Learn lab, NC State. The practices here are the ones I used in three years as a software engineer at Microsoft, on Azure Image Builder. Arrow keys move between slides; each animation has a Play button and a text list of its steps.</p>
+  </section>
+
+  <section id="slide-today" data-title="SnapClass today">
+    <div class="eyebrow"><span class="kind measured">measured</span> traced from the code</div>
+    <h2 class="cm" data-comment-target>SnapClass today: one Node process, one database<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>Angular, Snap 10.7.2 and the API are served by one Express server, backed by one MySQL database with 37 tables.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Live struggle data is kept in that one process's memory, so SnapClass cannot run as two copies. Research logs are written while the student's request waits.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Pick a request and press Play. The right side shows the code each step runs.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div id="fx-current" data-uncommentable></div>
+  </section>
+
+  <section id="slide-growth" data-title="How it grew">
+    <div class="eyebrow"><span class="kind measured">measured</span> counted in the code</div>
+    <h2 class="cm" data-comment-target>Ten years, many developers, one shared codebase<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>Many developers have added to SnapClass over about ten years, each working toward their own feature or study. The architecture never said where a study's code should go, so each one went where it fit at the time: a route folder, a table, a patch to Snap.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Each choice was reasonable when it was made. Together they put every feature in the same process, the same database and the same deploy, so a change anywhere can affect everything.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>The team has already put rules around this: feature branches merged into <code>dev</code> by pull request, one approving review, 4 required check workflows, and a typed authorization layer over 130 operations. The rework keeps those practices and changes the structure underneath them.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div class="tiles">
+      <div class="cm" data-comment-target><h4>Route folders</h4><p class="big">29</p><p>132 route handlers in one server<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>One database</h4><p class="big">37 tables</p><p>every feature's data side by side<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Patches to Snap</h4><p class="big">13 scripts</p><p>loaded into Snap's own page<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Front end</h4><p class="big">66 components</p><p>in one Angular app<button type="button" class="cbtn">Comment</button></p></div>
+    </div>
+  </section>
+
+  <section id="slide-cost" data-title="What it costs">
+    <div class="eyebrow"><span class="kind measured">measured</span> a real proposal, checked against the code</div>
+    <h2 class="cm" data-comment-target>What that costs: one new feature touches 17 shared places<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>The test case: a panel beside Snap that shows a student's scripts as Python-like text and lets them edit it. On SnapClass today it changes 17 places in shared code, and shipping it restarts SnapClass for every class.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Growth is limited by that: every study adds risk for every other class, and two teams cannot change their features independently. Press Play on <i>What has to change</i>.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div id="fx-modtoday" data-uncommentable></div>
+  </section>
+
+  <section id="slide-micro" data-title="Microservices">
+    <div class="eyebrow"><span class="kind background">background</span> the vocabulary</div>
+    <h2 class="cm" data-comment-target>Microservices in one slide<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>A microservice is a small program that does one job, owns its own data, and is deployed on its own. Other services reach it only through its published contract: HTTP requests, or events on a queue.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div class="cols">
+      <div class="cm" data-comment-target><h3>A monolith (SnapClass today)</h3><ul>
+        <li>One codebase, one process, one database</li>
+        <li>Features call each other as functions and share tables</li>
+        <li>One deploy ships every feature at once</li>
+        <li>Scales by running a bigger machine</li>
+        <li>Simple to start; harder to change safely as it grows</li></ul><button type="button" class="cbtn">Comment</button></div>
+      <div class="new cm" data-comment-target><h3>Microservices (SnapClass Next)</h3><ul>
+        <li>Each service owns one job and one database schema</li>
+        <li>Services talk through HTTP contracts and events</li>
+        <li>Each service is built, tested and deployed on its own</li>
+        <li>Scales by running more copies of the busy service</li>
+        <li>More moving parts, so testing, deploys and monitoring are automated</li></ul><button type="button" class="cbtn">Comment</button></div>
+    </div>
+    <div class="tiles">
+      <div class="cm" data-comment-target><h4>Gateway</h4><p>The one door from the internet. It checks the sign-in token and routes each request to a service.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Container image</h4><p>A service and everything it needs, built once and run the same on a laptop and in prod.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Kubernetes</h4><p>Runs the containers: several copies of each, restarted when one fails, updated one copy at a time.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>202 and a worker</h4><p>Slow work is accepted at once (<code>202 Accepted</code>) and done later by a worker reading a queue.<button type="button" class="cbtn">Comment</button></p></div>
+    </div>
+  </section>
+
+  <section id="slide-norm" data-title="Why online services use them">
+    <div class="eyebrow"><span class="kind background">background</span> with sources</div>
+    <h2 class="cm" data-comment-target>Why large online services are built this way<button type="button" class="cbtn">Comment</button></h2>
+    <div class="tiles">
+      <div class="cm" data-comment-target><h4>Ship one part at a time</h4><p>A fix to grading ships without restarting sign-in. Small releases are easier to test and to roll back.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Scale the busy part</h4><p>At the start of a lab, saving work is busy and grading is quiet. Add copies of the work service only.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Contain failures</h4><p>A service that fails takes its own feature down, not the site. In SnapClass Next a broken mod leaves Snap, saving and grading working.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Teams own services</h4><p>A team reviews and ships its own service. Conway observed that a system's structure mirrors the teams that build it, so the structure is chosen to match the teams.<button type="button" class="cbtn">Comment</button></p></div>
+    </div>
+    <ul class="why">
+      <li class="cm" data-comment-target>Cloud platforms and Kubernetes are designed around one container per service, and Microsoft's Azure Architecture Center describes microservices as one of its standard architecture styles.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>They have real costs: more pieces to run, calls over the network that can fail, and data spread over several stores. Fowler's advice is to start with a monolith and split it once its seams are known. After ten years, SnapClass's seams are known; slides 11 to 13 cover the automation that pays for the extra pieces.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <p class="src" data-uncommentable>Sources: J. Lewis and M. Fowler, <a href="https://martinfowler.com/articles/microservices.html">Microservices</a> (2014); M. Fowler, <a href="https://martinfowler.com/bliki/MonolithFirst.html">MonolithFirst</a> (2015); M. Conway, <a href="https://www.melconway.com/Home/Committees_Paper.html">How Do Committees Invent?</a> (1968); Microsoft, <a href="https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices">Microservices architecture style</a> and <a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/async-request-reply">Asynchronous Request-Reply pattern</a>; <a href="https://kubernetes.io/docs/concepts/overview/">Kubernetes overview</a>.</p>
+  </section>
+
+  <section id="slide-next" data-title="SnapClass Next">
+    <div class="eyebrow"><span class="kind measured">measured</span> running today, traced from its code</div>
+    <h2 class="cm" data-comment-target>SnapClass Next: 6 core services, 5 mods, one gateway<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>The core is identity (sign-in), course, work (saving, submitting, grading), registry (which mods are on where), telemetry (the research trace) and the gateway. Each service has its own database schema and its own database user, so one service cannot read another's tables.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Mods run in their own containers: a water simulation, a shell view, struggle detection, an AI tutor and an answer guard. They reach the core only through 10 published extension points.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Press Play on a flow: a Snap block drives the simulation in the mod's container, and its state streams back to the browser.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div id="fx-nextwater" data-uncommentable></div>
+  </section>
+
+  <section id="slide-answers" data-title="What it fixes">
+    <div class="eyebrow"><span class="kind measured">measured</span> each answer is a rule in the spec, with a test</div>
+    <h2 class="cm" data-comment-target>Each limit, and what SnapClass Next does instead<button type="button" class="cbtn">Comment</button></h2>
+    <div class="wrap" data-uncommentable>
+      <table class="map">
+        <thead><tr><th>SnapClass today</th><th>SnapClass Next</th></tr></thead>
+        <tbody>
+          <tr class="cm" data-comment-target><td>One process holds live state in memory, so it cannot run as two copies</td><td>Core services keep their state in their own databases, so each can run as several copies (most run two on Kubernetes), and Kubernetes replaces a copy that fails<button type="button" class="cbtn">Comment</button></td></tr>
+          <tr class="cm" data-comment-target><td>One database: every feature can read and change every table</td><td>One schema and one database user per service; a query into another service's schema fails<button type="button" class="cbtn">Comment</button></td></tr>
+          <tr class="cm" data-comment-target><td>A study's code goes into shared routes, tables and patches to Snap</td><td>A study is a mod with its own container and data; it changes no core file<button type="button" class="cbtn">Comment</button></td></tr>
+          <tr class="cm" data-comment-target><td>Research logs are written while the student waits</td><td>Telemetry answers <code>202</code> at once; a worker writes the trace from a queue<button type="button" class="cbtn">Comment</button></td></tr>
+          <tr class="cm" data-comment-target><td>One deploy restarts SnapClass for every class</td><td>A mod is turned on per section, and the core releases one tested image tag at a time<button type="button" class="cbtn">Comment</button></td></tr>
+          <tr class="cm" data-comment-target><td>A bug in one feature can take down the whole server</td><td>A mod that is down shows "unavailable" in its panel; Snap, saving and grading keep working (system test plan STP-9)<button type="button" class="cbtn">Comment</button></td></tr>
+          <tr class="cm" data-comment-target><td><code>dev</code> is system tested by hand before <code>main</code></td><td>18 system test plans run automatically on a smoke copy before every release<button type="button" class="cbtn">Comment</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="slide-team" data-title="Core team and mods">
+    <div class="eyebrow"><span class="kind measured">measured</span> the mod contract · <span class="kind proposed">proposed</span> who owns what</div>
+    <h2 class="cm" data-comment-target>A core team owns the core; everyone else writes mods<button type="button" class="cbtn">Comment</button></h2>
+    <div class="cols">
+      <div class="new cm" data-comment-target><h3>The core team</h3><ul>
+        <li>The only people who change <code>services/</code>, <code>packages/</code>, <code>web/</code> and <code>deploy/</code></li>
+        <li>Review every core pull request; GitHub enforces it with CODEOWNERS</li>
+        <li>Keep the 10 extension points stable and versioned, so a mod written this year still loads next year</li>
+        <li>Run the releases</li></ul><button type="button" class="cbtn">Comment</button></div>
+      <div class="cm" data-comment-target><h3>Mod developers</h3><ul>
+        <li>Research projects, students and other teams</li>
+        <li>Write a mod in its own repository: a manifest, a container, its own data</li>
+        <li>Use only the extension points: host API in Snap, a panel beside Snap, routes under <code>/mods/&lt;name&gt;/</code>, events</li>
+        <li>Sideload it: install from its manifest, an admin approves the version, a teacher turns it on per section</li></ul><button type="button" class="cbtn">Comment</button></div>
+    </div>
+    <ul class="why">
+      <li class="cm" data-comment-target>The core is what every class depends on, so it changes slowly, through a small team with a high bar. Mods are where research moves fast, and a mod that fails takes down only itself.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Today the 5 mods still live in the SnapClass Next repository under <code>mods/</code>. Separate repositories and installing a mod without touching the core are the next step, and still a proposal.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+  </section>
+
+  <section id="slide-mod" data-title="Writing a mod">
+    <div class="eyebrow"><span class="kind measured">measured</span> a real mod's files</div>
+    <h2 class="cm" data-comment-target>Writing new code: a mod, from manifest to panel<button type="button" class="cbtn">Comment</button></h2>
+    <div class="split">
+      <div class="cm" data-comment-target>
+        <ol class="plain">
+          <li><b>A manifest</b> (<code>mod.json</code>) says what the mod adds and which host API version it needs.</li>
+          <li><b>A service</b> in its own container answers under <code>/mods/&lt;name&gt;/api/</code>. The gateway checks the token and that the mod is on for the student's section.</li>
+          <li><b>A Snap script</b> uses the host API: <code>defineBlocks</code>, <code>call</code>, <code>subscribe</code>, <code>onActivity</code>.</li>
+          <li><b>A panel</b> beside Snap runs in a sandboxed frame and talks to the page through the bridge.</li>
+          <li><b>Tests</b>: unit tests, and a system test plan for the student's flow.</li>
+        </ol><button type="button" class="cbtn">Comment</button>
+      </div>
+      <div data-uncommentable><pre class="code" aria-label="The shell view mod's manifest, mods/shellview/mod.json">{
+  &quot;name&quot;: &quot;shellview&quot;,
+  &quot;version&quot;: &quot;0.1.0&quot;,
+  &quot;title&quot;: &quot;Shell view&quot;,
+  &quot;core&quot;: &quot;&gt;=0.1 &lt;1&quot;,
+  &quot;hostApi&quot;: 1.2,
+  &quot;snap&quot;: {
+    &quot;script&quot;: &quot;static/snap/shellview.js&quot;,
+    &quot;sha256&quot;: &quot;63e7333ef6c3ffa84ab44d0523af494c5f40bf84a172699b7c621a07f0f742c4&quot;
+  },
+  &quot;panel&quot;: {
+    &quot;page&quot;: &quot;static/panel/index.html&quot;,
+    &quot;height&quot;: 420
+  },
+  &quot;routes&quot;: {
+    &quot;api&quot;: &quot;/mods/shellview/api/&quot;
+  },
+  &quot;exports&quot;: [
+    &quot;POST /translate&quot;
+  ],
+  &quot;emits&quot;: [
+    &quot;shellview.viewed&quot;
+  ],
+  &quot;data&quot;: &quot;none: scripts are translated and forgotten; only which language a student views goes to trace&quot;
+}</pre></div>
+    </div>
+    <div id="fx-nextshell" data-uncommentable></div>
+  </section>
+
+  <section id="slide-tests" data-title="Testing">
+    <div class="eyebrow"><span class="kind measured">measured</span> counted in the repository</div>
+    <h2 class="cm" data-comment-target>Testing that proves itself<button type="button" class="cbtn">Comment</button></h2>
+    <div class="tiles">
+      <div class="cm" data-comment-target><h4>Unit and contract</h4><p class="big">229 tests</p><p>One function or one service's API, in milliseconds. Contract tests check that a service's requests and events match what others expect.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>System test plans</h4><p class="big">18 plans</p><p>97 tests that follow a user's flow in a real browser against a deployed copy: sign in, open an assignment, save, submit, grade.<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Break tests</h4><p class="big">76 bugs</p><p>Each plants one bug in the source and passes only if the tests named for it fail. A test that cannot fail proves nothing.<button type="button" class="cbtn">Comment</button></p></div>
+    </div>
+    <ul class="why">
+      <li class="cm" data-comment-target>A bug fix comes with a test that fails without the fix. This week the health monitor kept an old incident open: a test reproduced it, putting the bug back made that test fail (break B76), and then the fix went in.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Each unit test is listed under the system test step that needs it, so a failing test points at the user's flow it protects.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+  </section>
+
+  <section id="slide-release" data-title="One-touch release">
+    <div class="eyebrow"><span class="kind measured">measured</span> the release script, step by step</div>
+    <h2 class="cm" data-comment-target>One command takes a commit to prod, or stops<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>Nobody deploys by hand. One script builds the images, deploys them to smoke, runs every system test plan and the reliability gate there, and only then gives prod the same image tag.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>It runs on a laptop today. On GitHub the same script becomes the job that runs after a merge to <code>main</code>, so continuous integration (the checks on every pull request) and continuous delivery (this release) use the same steps.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div id="fx-nextrelease" data-uncommentable></div>
+  </section>
+
+  <section id="slide-smoke" data-title="Smoke before prod">
+    <div class="eyebrow"><span class="kind measured">measured</span> how SnapClass Next releases · <span class="kind background">background</span> with sources</div>
+    <h2 class="cm" data-comment-target>Why every release goes to smoke before prod<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>Unit tests check code on its own. Many failures appear only when the services run together: a missing setting or secret, a database migration, a wrong address between services, a memory limit, or load.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Smoke is a full copy of prod with synthetic classes: the same images, the same Kubernetes files and the same limits. A release that works there has been rehearsed, and no student sees a release that failed.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Prod gets the exact image tag that passed, never a rebuild, so what students run is what was tested. A failed release leaves prod on the version it had.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>This is the same idea as testing <code>dev</code> before <code>main</code> today, made automatic. Large services go further and release to a small group of real users first, a canary, then widen it.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div class="tiles">
+      <div class="cm" data-comment-target><h4>Smoke region</h4><p class="big">:8093</p><p>synthetic classes, every system test plan, the reliability gate<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Reliability gate</h4><p class="big">998 / 1,000</p><p>each main request must succeed at least this often<button type="button" class="cbtn">Comment</button></p></div>
+      <div class="cm" data-comment-target><h4>Prod</h4><p class="big">:8092</p><p>the same image tag, after both pass<button type="button" class="cbtn">Comment</button></p></div>
+    </div>
+    <p class="src" data-uncommentable>Sources: Microsoft, <a href="https://learn.microsoft.com/en-us/devops/operate/safe-deployment-practices">Safe deployment practices</a>; D. Sato, <a href="https://martinfowler.com/bliki/CanaryRelease.html">Canary release</a>.</p>
+  </section>
+
+  <section id="slide-repo" data-title="Working in the repository">
+    <div class="eyebrow"><span class="kind proposed">proposed</span> builds on BRANCHING.md</div>
+    <h2 class="cm" data-comment-target>Working in the repository: a branch per feature, a pull request per milestone, a commit per change<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target><b>A branch per feature</b>, as today. A feature starts as a short spec that splits it into milestones.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><b>A pull request per milestone</b>, small enough to review in one sitting. Each one names the spec, the milestone and its tests, and can ship on its own.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target><b>A commit per logical change</b>, written for the person reviewing it: it builds and passes its tests on its own, and its message says what changed and why. A reviewer can then read the pull request one commit at a time.<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>What changes from today: core paths need the core team's review, mods are reviewed by their own team, and the smoke copy does the system testing <code>dev</code> gets by hand. Whether we still need a long-lived <code>dev</code> branch is for us to decide.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div id="fx-teamflow" data-uncommentable></div>
+    <p class="src" data-uncommentable>Source: GitHub Docs, <a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners">About code owners</a>.</p>
+  </section>
+
+  <section id="slide-commits" data-title="Restructuring a pull request">
+    <div class="eyebrow"><span class="kind proposed">example</span> one pull request, two attempts</div>
+    <h2 class="cm" data-comment-target>Example: the same work, restructured into commits a reviewer can follow<button type="button" class="cbtn">Comment</button></h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>A developer builds milestone M1 of help requests: a function that checks a request, the route that calls it, and a system test. The code is the same in both attempts. Only the commits differ.<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <div class="cols">
+      <div class="cm" data-comment-target><h3>First attempt: grouped by bedtime</h3>
+        <ol class="commits">
+          <li><code>wip help requests</code><span class="when">11:48 pm</span>
+            <ul class="files"><li><code>course/src/help.ts</code> half written</li><li><code>course/src/app.ts</code> the route, calling it</li><li><code>course/test/help.test.ts</code> two of the tests</li><li><code>system/stp-19-help.spec.ts</code> started</li></ul>
+            <p class="note">Does not pass its tests: the developer committed before bed.</p></li>
+          <li><code>finish help requests</code><span class="when">next day, 10:15 am</span>
+            <ul class="files"><li><code>course/src/help.ts</code> finished, and renamed a field the route used</li><li><code>course/src/app.ts</code> fixed to match</li><li><code>course/test/*.test.ts</code> the remaining tests</li><li><code>system/stp-19-help.spec.ts</code> finished</li></ul></li>
+        </ol>
+        <p class="note">The reviewer has to read both commits at once to see what any one piece does, and cannot tell which test covers which change.</p>
+        <button type="button" class="cbtn">Comment</button></div>
+      <div class="new cm" data-comment-target><h3>Second attempt: one logical change per commit</h3>
+        <ol class="commits">
+          <li><code>course: helpRequestFrom() checks and builds a help request</code>
+            <ul class="files"><li><code>course/src/help.ts</code> the function</li><li><code>course/test/help.test.ts</code> a test for each rule: an empty message is refused (U-course-14), a student outside the section is refused (U-course-15), a long message is trimmed (U-course-16)</li></ul></li>
+          <li><code>course: POST /help answers 202 and publishes help.requested</code>
+            <ul class="files"><li><code>course/src/app.ts</code> the route, which calls <code>helpRequestFrom()</code></li><li><code>course/test/app.test.ts</code> answers 202 and publishes the event (U-course-17); a refused request comes back as 400 (U-course-18)</li></ul></li>
+          <li><code>system: STP-19 a student asks for help and the teacher sees it</code>
+            <ul class="files"><li><code>system/stp-19-help.spec.ts</code> end to end in a browser</li><li><code>docs/SYSTEM-TESTS.md</code> the plan's steps</li></ul></li>
+        </ol>
+        <p class="note">Each commit builds and passes its tests on its own. The reviewer checks the function, then the wiring, then the behaviour.</p>
+        <button type="button" class="cbtn">Comment</button></div>
+    </div>
+    <div class="split">
+      <div class="cm" data-comment-target>
+        <h3 class="sub">How to restructure it</h3>
+        <ol class="plain">
+          <li>Undo the two commits but keep the work: <code>git reset --soft</code> to where the branch started, then unstage everything.</li>
+          <li>Stage one logical change at a time, with its tests, and commit it. <code>git add -p</code> stages part of a file, which helps when <code>app.ts</code> holds changes for two commits.</li>
+          <li>Prove each commit passes on its own: <code>git rebase --exec</code> runs the tests after every commit.</li>
+          <li>Update the pull request with <code>--force-with-lease</code>, which refuses if someone else pushed to the branch meanwhile. Rewrite only your own feature branch, never <code>main</code>.</li>
+        </ol><button type="button" class="cbtn">Comment</button>
+      </div>
+      <div data-uncommentable><pre class="code" aria-label="The commands for the second attempt">git switch feat/help-requests
+git reset --soft "$(git merge-base origin/main HEAD)"   # where the branch started:
+                                  # keep the work, drop the 2 commits
+git restore --staged .
+
+git add services/course/src/help.ts services/course/test/help.test.ts
+git commit -m "course: helpRequestFrom() checks and builds a help request"
+
+git add -p services/course/src/app.ts services/course/test/app.test.ts
+git commit -m "course: POST /help answers 202 and publishes help.requested"
+
+git add tests/system/stp-19-help.spec.ts docs/SYSTEM-TESTS.md
+git commit -m "system: STP-19 a student asks for help and the teacher sees it"
+
+git rebase --exec "npm test" origin/main   # every commit passes alone
+git push --force-with-lease</pre></div>
+    </div>
+  </section>
+
+  <section id="slide-notes" class="cm" data-comment-target data-title="Questions">
+    <div class="eyebrow">discussion</div>
+    <h2>Questions, and what we decide next</h2>
+    <ul class="why">
+      <li class="cm" data-comment-target>Who is on the core team, and how does someone join it?<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Do we keep a long-lived <code>dev</code> branch, or let the smoke copy replace it?<button type="button" class="cbtn">Comment</button></li>
+      <li class="cm" data-comment-target>Which of today's features move first, and which become mods?<button type="button" class="cbtn">Comment</button></li>
+    </ul>
+    <p class="credit" data-uncommentable>Measured slides come from a copy of SnapClass and from SnapClass Next at commit d68b469; every count and every animated step's code is checked when this deck is built. Proposed slides are design only. Deck structure after <a href="https://github.com/webslides/WebSlides">WebSlides</a> (MIT).</p>
+  </section>
+</article>
+
+<nav class="pnav" aria-label="Slides" data-uncommentable>
+  <button type="button" class="btn" id="p-prev" aria-label="Previous slide">&#9664;</button>
+  <span class="count" id="p-count"></span>
+  <button type="button" class="btn" id="p-next" aria-label="Next slide">&#9654;</button>
+  <button type="button" class="btn solid" id="c-slide">Comment on this slide</button>
+</nav>
+
+<script type="application/json" id="code-data">{"add_backup": {"file": "SnapClass today, client/app/services/api.service.ts (code not shown in this public copy)", "first": 1651, "lines": []}, "after_login": {"file": "SnapClass today, client/app/guest-page/guest-page.component.ts (code not shown in this public copy)", "first": 419, "lines": []}, "api_help": {"file": "SnapClass today, client/app/services/api.service.ts (code not shown in this public copy)", "first": 526, "lines": []}, "auth_cloud": {"file": "SnapClass today, server/modules/auth/service.ts (code not shown in this public copy)", "first": 255, "lines": []}, "auth_route": {"file": "SnapClass today, server/modules/auth/routes.ts (code not shown in this public copy)", "first": 41, "lines": []}, "autosave": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 375, "lines": []}, "broadcast": {"file": "SnapClass today, server/routes/struggle/state.js (code not shown in this public copy)", "first": 131, "lines": []}, "capture": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 484, "lines": []}, "cloud_login": {"file": "SnapClass today, app.js (code not shown in this public copy)", "first": 105, "lines": []}, "drift_ci": {"file": "SnapClass today, .github/workflows/backend-tests.yml (code not shown in this public copy)", "first": 61, "lines": []}, "event_source": {"file": "SnapClass today, client/app/services/struggle-detection.service.ts (code not shown in this public copy)", "first": 119, "lines": []}, "find_creds": {"file": "SnapClass today, server/modules/user/repository.ts (code not shown in this public copy)", "first": 112, "lines": []}, "grade_call": {"file": "SnapClass today, client/app/teacher/grade-assignment/grade-assignment.component.ts (code not shown in this public copy)", "first": 1045, "lines": []}, "grade_model": {"file": "SnapClass today, server/model/Grading.js (code not shown in this public copy)", "first": 116, "lines": []}, "guard": {"file": "SnapClass today, client/app/guards/auth.guards.ts (code not shown in this public copy)", "first": 24, "lines": []}, "help_call": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 4565, "lines": []}, "help_interval": {"file": "SnapClass today, client/app/services/student-help-alert.service.ts (code not shown in this public copy)", "first": 12, "lines": []}, "help_model": {"file": "SnapClass today, server/model/Help.js (code not shown in this public copy)", "first": 40, "lines": []}, "help_refresh": {"file": "SnapClass today, client/app/services/student-help-alert.service.ts (code not shown in this public copy)", "first": 66, "lines": []}, "identify": {"file": "SnapClass today, server/middleware/authenticate.middleware.ts (code not shown in this public copy)", "first": 52, "lines": []}, "interceptor": {"file": "SnapClass today, client/app/services/token.interceptor.ts (code not shown in this public copy)", "first": 25, "lines": []}, "issue_token": {"file": "SnapClass today, server/modules/auth/service.ts (code not shown in this public copy)", "first": 57, "lines": []}, "jwt_verify": {"file": "SnapClass today, server/modules/auth/service.ts (code not shown in this public copy)", "first": 77, "lines": []}, "legacy_grade": {"file": "SnapClass today, server/routes/grading/post-grade.js (code not shown in this public copy)", "first": 15, "lines": []}, "legacy_help": {"file": "SnapClass today, server/routes/help/post-help.js (code not shown in this public copy)", "first": 11, "lines": []}, "legacy_log": {"file": "SnapClass today, server/routes/logs/post-log.js (code not shown in this public copy)", "first": 17, "lines": []}, "legacy_sub": {"file": "SnapClass today, server/routes/submissions/post-submission.js (code not shown in this public copy)", "first": 17, "lines": []}, "listen": {"file": "SnapClass today, app.js (code not shown in this public copy)", "first": 171, "lines": []}, "local_first": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 1694, "lines": []}, "log_store": {"file": "SnapClass today, Snap-10.7.2/snap-patch/logging/db-logger.js (code not shown in this public copy)", "first": 12, "lines": []}, "log_xhr": {"file": "SnapClass today, Snap-10.7.2/snap-patch/logging/db-logger.js (code not shown in this public copy)", "first": 91, "lines": []}, "logged_in": {"file": "SnapClass today, client/app/services/auth.service.ts (code not shown in this public copy)", "first": 92, "lines": []}, "login_call": {"file": "SnapClass today, client/app/guest-page/guest-page.component.ts (code not shown in this public copy)", "first": 989, "lines": []}, "mem_state": {"file": "SnapClass today, server/routes/struggle/state.js (code not shown in this public copy)", "first": 9, "lines": []}, "model_sub": {"file": "SnapClass today, server/model/Submission.js (code not shown in this public copy)", "first": 242, "lines": []}, "mount_grade": {"file": "SnapClass today, server/routes/routes.js (code not shown in this public copy)", "first": 613, "lines": []}, "mount_struggle": {"file": "SnapClass today, server/routes/routes.js (code not shown in this public copy)", "first": 794, "lines": []}, "mount_wrapper": {"file": "SnapClass today, server/routes/routes.js (code not shown in this public copy)", "first": 30, "lines": []}, "mysql_json": {"file": "SnapClass today, server/routes/db.js (code not shown in this public copy)", "first": 1, "lines": []}, "n_activity": {"file": "snapclass-next/web/public/snap/sc/activity.js", "first": 16, "lines": ["  wrap(BlockMorph.prototype, \"reactToTemplateCopy\", function () { Trace.log(\"Block.created\", this.blockId()); });", "  wrap(BlockMorph.prototype, \"prepareToBeGrabbed\", function () { Trace.log(\"Block.grabbed\", { id: this.blockId(), origin: this.bounds.origin }); });", "  wrap(BlockMorph.prototype, \"snap\", function () { Trace.log(\"Block.snapped\", { id: this.blockId(), origin: this.bounds.origin }); });"]}, "n_blocktree": {"file": "snapclass-next/web/public/snap/sc/host-api.js", "first": 103, "lines": ["  function blockTree(b, withNext) {", "    var node = { s: b.selector || \"\", kind: kindOf(b), label: b.blockSpec || \"\", in: [] };", "    if (b.isCustomBlock && b.definition) node.spec = b.definition.spec;", "    if (b.selector === \"reportGetVar\") node[\"var\"] = b.blockSpec;", "    node[\"in\"] = b.inputs().map(inputTree);", "    var next = withNext && b.nextBlock ? b.nextBlock() : null;", "    if (next) node.next = blockTree(next, true);", "    return node;", "  }"]}, "n_bridge_call": {"file": "snapclass-next/web/src/mods/bridge.ts", "first": 40, "lines": ["  async call(mod: string, path: string, method = \"GET\", body?: unknown): Promise<{ status: number; body: unknown }> {", "    const p = modPath(mod, path);", "    if (!p) return { status: 403, body: { error: `${mod} may only call ${`/mods/${mod}/api/`}` } };", "    const f = this.deps.fetch ?? fetch;", "    const ctl = new AbortController();", "    const timer = setTimeout(() => ctl.abort(), this.deps.callTimeoutMs ?? 10_000);", "    try {", "      const res = await f(p, { method, headers: this.headers(body !== undefined), body: body === undefined ? undefined : JSON.stringify(body), signal: ctl.signal });", "      const text = await res.text();", "      let parsed: unknown = text;", "      try { parsed = text ? JSON.parse(text) : null; } catch { /* not JSON */ }", "      return { status: res.status, body: parsed };"]}, "n_bridge_read": {"file": "snapclass-next/web/src/mods/bridge.ts", "first": 88, "lines": ["        const reader = res.body.getReader();", "        const dec = new TextDecoder();", "        let buf = \"\";", "        for (;;) {", "          const { value, done } = await reader.read();", "          if (done) break;", "          buf += dec.decode(value, { stream: true });", "          let i: number;", "          while ((i = buf.indexOf(\"\\n\")) >= 0) {", "            const line = buf.slice(0, i).trim();", "            buf = buf.slice(i + 1);", "            if (!line) continue;", "            let parsed: unknown;", "            try { parsed = JSON.parse(line); } catch { continue; }"]}, "n_bridge_sub": {"file": "snapclass-next/web/src/mods/bridge.ts", "first": 60, "lines": ["  subscribe(mod: string, id: string, path: string, onLine: (line: unknown) => void, onEnd: (error?: string, clean?: boolean) => void) {", "    const p = modPath(mod, path);", "    if (!p) { onEnd(`${mod} may only subscribe under /mods/${mod}/api/`); return; }", "    const key = `${mod}|${p}`;", "    this.unsubscribe(id);", "    let s = this.streams.get(key);", "    if (!s) { s = { mod, path: p, ctl: null, listeners: new Map() }; this.streams.set(key, s); }", "    s.listeners.set(id, { onLine, onEnd });", "    this.owner.set(id, key);", "    if (!s.ctl && !this.paused) this.open(key, s);", "  }"]}, "n_calls_check": {"file": "snapclass-next/services/registry/src/app.ts", "first": 311, "lines": ["  app.get(\"/calls/check\", h(async (req, res) => {", "    const caller = String(req.query.caller ?? \"\"), callee = String(req.query.callee ?? \"\");", "    const method = String(req.query.method ?? \"GET\"), path = String(req.query.path ?? \"\");", "    const [rows] = await db.query<ModRow[]>(\"SELECT * FROM mods WHERE name IN (?)\", [[caller, callee]]);", "    const a = rows.find(r => r.name === caller), b = rows.find(r => r.name === callee);", "    if (!a || !b) return res.json({ allowed: false, reason: `${!a ? caller : callee} is not installed` });", "    if (!manifestOf(a).requires.some(q => q.mod === callee)) return res.json({ allowed: false, reason: `${caller} does not declare ${callee} in requires` });", "    if (!exportAllows(manifestOf(b).exports, method, path)) return res.json({ allowed: false, reason: `${callee} does not export ${method} ${path}` });", "    res.json({ allowed: true });", "  }));"]}, "n_command": {"file": "snapclass-next/mods/watersim/static/snap/watersim.js", "first": 90, "lines": ["function command(path, body) {", "  body.a = ctx.assignmentId;", "  body.s = String(ctx.sectionId || \"\");", "  pending++;", "  queue = queue.then(function () { return host.call(path, body); }).then(function (r) {", "    if (r && r.status === 200 && r.body && r.body.levels) latest = r.body;", "    else fail((r && r.body && r.body.error) || (\"watersim answered \" + (r && r.status)));", "  }, function (e) { fail(String(e)); }).then(function () { pending--; });", "  return queue;", "}"]}, "n_define": {"file": "snapclass-next/web/public/snap/sc/host-api.js", "first": 213, "lines": ["      defineBlocks: function (xml) {", "        if (typeof xml !== \"string\" || xml.indexOf(\"<blocks\") < 0) throw new Error(\"defineBlocks needs a Snap blocks library\");", "        mod.blocks.push(xml);", "        importBlocks(xml);", "      },", "      registerPrimitive: function (key, fn) {", "        if (!PRIM.test(key) || typeof fn !== \"function\") throw new Error(\"registerPrimitive(key, fn): key like 'ws_valve(id, open)'\");", "        SnapExtensions.primitives.set(key, fn);", "      },"]}, "n_emit": {"file": "snapclass-next/mods/watersim/src/app.ts", "first": 47, "lines": ["  async function emit(type: string, c: ReturnType<typeof ctx>, data: Record<string, unknown>) {", "    if (!emits.has(type)) throw new Error(`watersim does not list ${type} in its manifest's emits`);", "    await bus?.publish(`mod.watersim.${type.split(\".\")[1]}`, { mod: \"watersim\", type, userId: c.userId, assignmentId: c.assignmentId, sectionId: c.sectionId, time: new Date().toISOString(), data })", "      .catch(() => { /* research events are best effort; the student's command still runs */ });", "  }"]}, "n_enabled": {"file": "snapclass-next/web/src/mods/ModHost.tsx", "first": 32, "lines": ["    api<LoadedMod[]>(`/api/v2/registry/enabled?assignmentId=${assignmentId}`).then(setMods).catch(e => setProblems({ registry: (e as Error).message }));"]}, "n_forward": {"file": "snapclass-next/services/gateway/src/proxy.ts", "first": 12, "lines": ["export function forward(name: string, target: string, path: string, req: Request, res: Response, headers: Record<string, string> = {}) {", "  const url = new URL(path, target);", "  const out: http.OutgoingHttpHeaders = {};", "  for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && !k.startsWith(\"x-user-\") && !k.startsWith(\"x-mod-\") && !k.startsWith(\"x-token-\") && !k.startsWith(\"x-on-behalf-\")) out[k] = v;", "  Object.assign(out, headers, { \"x-forwarded-for\": req.ip ?? \"\", \"x-request-id\": String(res.getHeader(\"x-request-id\") ?? req.header(\"x-request-id\") ?? \"\") });", "  const upstream = http.request(url, { method: req.method, headers: out }, up => {", "    const h: http.OutgoingHttpHeaders = {};", "    for (const [k, v] of Object.entries(up.headers)) if (!HOP.has(k)) h[k] = v;", "    res.writeHead(up.statusCode ?? 502, h);", "    res.flushHeaders();", "    up.on(\"data\", (chunk: Buffer) => res.write(chunk));", "    up.on(\"end\", () => res.end());", "    up.on(\"error\", () => res.end());", "  });", "  upstream.on(\"error\", () => {", "    res.locals.byGateway = true;     // the service could not be reached: the gateway answers (T13)", "    if (!res.headersSent) res.status(503).json({ error: `${name} unavailable` });", "    else res.end();", "  });"]}, "n_gw_internal": {"file": "snapclass-next/services/gateway/src/app.ts", "first": 51, "lines": ["  app.all(\"/mods/:callee/api/*\", async (req, res) => {", "    const caller = cfg.modKeys[req.header(\"x-mod-key\") ?? \"\"];", "    if (!caller) return fail(res, new HttpError(401, \"Unknown mod key\"));", "    const callee = req.params.callee, base = cfg.mods[callee];", "    if (!base) return fail(res, new HttpError(404, \"No such mod\"));", "    const userId = Number(req.header(\"x-on-behalf-of\")), role = req.header(\"x-on-behalf-role\") ?? \"\";", "    if (!Number.isInteger(userId) || userId <= 0 || ![\"student\", \"teacher\", \"admin\"].includes(role)) return fail(res, new HttpError(400, \"X-On-Behalf-Of and X-On-Behalf-Role are required\"));", "    const user: User = { id: userId, role: role as Role };", "    const rest = req.originalUrl.replace(`/mods/${callee}/api`, \"\");", "    let sections: number[] = [];", "    try {", "      const c = await cfg.callAllowed(user, caller, callee, req.method, rest);", "      if (!c.allowed) return fail(res, new HttpError(403, c.reason ?? `${caller} may not call ${callee}`));", "      const a = await cfg.modAllowed(user, callee);", "      const allowed = typeof a === \"boolean\" ? a : a.allowed;", "      if (typeof a !== \"boolean\") sections = a.sections;", "      if (!allowed) return fail(res, new HttpError(403, `${callee} is not on for this user's sections`));", "    } catch {", "      return fail(res, new HttpError(503, \"registry unavailable\"));", "    }", "    forward(`mod ${callee}`, base, req.originalUrl.replace(`/mods/${callee}`, \"\"), req, res,", "      { ...who(user), \"x-mod-sections\": sections.join(\",\"), \"x-mod-caller\": caller });"]}, "n_gw_mod": {"file": "snapclass-next/services/gateway/src/app.ts", "first": 160, "lines": ["  app.all(\"/mods/:mod/api/*\", authenticate, async (req, res) => {", "    const mod = req.params.mod;", "    const base = cfg.mods[mod];", "    if (!base) return fail(res, new HttpError(404, \"No such mod\"));", "    let sections: number[] = [];", "    try {", "      const a = await cfg.modAllowed(req.user!, mod);", "      const allowed = typeof a === \"boolean\" ? a : a.allowed;", "      if (typeof a !== \"boolean\") sections = a.sections;", "      if (!allowed) return fail(res, new HttpError(403, `${mod} is not on for your sections`));", "    } catch {", "      return fail(res, new HttpError(503, \"registry unavailable\"));", "    }", "    // E6 v1.1: the mod learns which of the caller's sections have it on, without reading course's tables", "    forward(`mod ${mod}`, base, req.originalUrl.replace(`/mods/${mod}`, \"\"), req, res, { ...who(req.user!), \"x-mod-sections\": sections.join(\",\") });"]}, "n_host_call": {"file": "snapclass-next/web/public/snap/sc/host-api.js", "first": 222, "lines": ["      call: function (path, body, method) {", "        var id = \"c\" + (++seq);", "        return new Promise(function (resolve) {", "          pending[id] = function (m) { resolve({ status: m.status, body: m.body }); };", "          post({ scmod: \"call\", mod: name, id: id, path: path, method: method || (body === undefined ? \"GET\" : \"POST\"), body: body });", "        });", "      },"]}, "n_idle": {"file": "snapclass-next/mods/watersim/static/snap/watersim.js", "first": 167, "lines": ["host.registerPrimitive(\"ws_idle()\", function () { return pending === 0; });", "host.registerPrimitive(\"ws_check()\", function () {", "  if (failure) { var f = failure; failure = null; throw new Error(f); }", "});"]}, "n_install": {"file": "snapclass-next/web/public/snap/sc/host-api.js", "first": 250, "lines": ["    install: function (name, code, context) {", "      if (mods[name]) return null; // already running in this frame", "      ctx = context || ctx;", "      try {", "        new Function(\"host\", '\"use strict\";\\n' + code)(hostFor(name));", "        return null;", "      } catch (err) {", "        delete mods[name];", "        return String(err && err.message || err);", "      }", "    },"]}, "n_install_call": {"file": "snapclass-next/web/src/mods/ModHost.tsx", "first": 47, "lines": ["    function load(m: LoadedMod) {", "      if (installed.current.has(m.name)) return;", "      fetchVerified(m.snap.url, m.snap.sha256).then(v => {", "        if (!v.ok) {", "          setProblems(p => ({ ...p, [m.name]: `${m.title} did not load: ${v.reason}.` }));", "          if (v.reason === \"unavailable\") timers.push(window.setTimeout(() => load(m), 10_000));", "          return;", "        }", "        // E11: which mod draws on the stage here, so host.stage.owned() can answer in the Snap frame", "        const owner = mods.find(x => x.onStage);", "        const err = win?.SnapClassHost?.install(m.name, v.code, { assignmentId, sectionId, userId: me.id, role: me.role, stage: owner?.name ?? null, stageTitle: owner?.title ?? null });", "        if (err) { setProblems(p => ({ ...p, [m.name]: `${m.title} failed to start: ${err}` })); return; }", "        installed.current.add(m.name);", "        setProblems(p => { const { [m.name]: _, ...rest } = p; return rest; });", "      });"]}, "n_panel_draw": {"file": "snapclass-next/mods/watersim/static/panel/panel.js", "first": 25, "lines": ["    else if (m.scmod === \"line\" && m.id === \"world\") { retry = 1000; draw(m.line); }"]}, "n_panel_follow": {"file": "snapclass-next/mods/watersim/static/panel/panel.js", "first": 13, "lines": ["  function follow() { if (ctx) bridge({ scmod: \"subscribe\", id: \"world\", path: \"stream?a=\" + ctx.assignmentId }); }"]}, "n_reg_check": {"file": "snapclass-next/services/registry/src/app.ts", "first": 295, "lines": ["  app.get(\"/check\", h(async (req, res) => {", "    const u = req.user!, mod = String(req.query.mod ?? \"\"), userId = Number(req.query.userId);", "    if (u.id !== userId && u.role !== \"admin\") throw forbidden();", "    const sections = await course.sectionsOf(u, userId);", "    // the caller's sections that have this mod on (the gateway passes them as X-Mod-Sections, E6 v1.1)", "    const on: number[] = [];", "    if (sections.length) {", "      const [rows] = await db.query<RowDataPacket[]>(", "        `SELECT e.section_id FROM enablement e JOIN mods m ON m.name = e.mod_name", "         WHERE e.mod_name = ? AND e.section_id IN (?) AND m.approved_version = m.version ORDER BY e.section_id`, [mod, sections]);", "      on.push(...rows.map(r => r.section_id as number));", "    }", "    res.json({ mod, userId, allowed: on.length > 0, sections: on });", "  }));"]}, "n_rel": {"file": "snapclass-next/scripts/release-k8s.sh", "first": 8, "lines": ["TAG=${TAG:-$(git rev-parse --short HEAD)}", "step() { printf '\\n\\033[1m== %s\\033[0m\\n' \"$*\"; }", "step \"build images, tag $TAG\"", "(cd deploy && TAG=$TAG docker compose --env-file .env -p snapclass-next build)", "step \"cluster and images\"", "python3 scripts/k8s.py cluster", "python3 scripts/k8s.py load \"$TAG\"", "step \"smoke namespace (:8093)\"", "python3 scripts/k8s.py apply smoke \"$TAG\"", "step \"the health watcher (http://localhost:8088, T23): STP-15 needs it\"", "TAG=$TAG bash scripts/watch.sh up", "step \"system test plan on the cluster's smoke namespace\"", "(cd tests/system && BASE_URL=http://localhost:8093 EXPECT_VERSION=$TAG npx playwright test) || { echo \"RELEASE STOPPED: smoke failed its system tests; prod is untouched.\"; exit 1; }", "step \"reliability gate (998/1000) on the cluster's smoke namespace\"", "BASE_URL=http://localhost:8093 node scripts/soak.mjs || { echo \"RELEASE STOPPED: smoke failed the reliability gate; prod is untouched.\"; exit 1; }", "step \"prod namespace (:8092), same tag\"", "python3 scripts/k8s.py apply prod \"$TAG\"", "curl -sf http://localhost:8092/version", "printf '\\n\\033[1mRELEASED %s on Kubernetes: http://localhost:8092\\033[0m\\n' \"$TAG\""]}, "n_relay": {"file": "snapclass-next/web/src/mods/ModHost.tsx", "first": 93, "lines": ["      if (!mod || !names.has(mod)) return;", "      const b = bridge.current;", "      const id = `${mod}:${e.source === snapWin ? \"snap\" : \"panel\"}:${m.id}`;", "      if (m.scmod === \"call\") b.call(mod, m.path, m.method, m.body).then(r => {", "        // the mod was switched off for this class while the page was open (bug B-08)", "        if (r.status === 403 && /not on for your sections/.test(String((r.body as { error?: string })?.error))) {", "          dispatch({ mod: mod!, e: { type: \"panel-failed\", reason: `${mod} was turned off for your class; reload the page` } });", "        }", "        reply({ scmod: \"result\", id: m.id, ...r });", "      });"]}, "n_rule": {"file": "snapclass-next/mods/answerguard/src/rules.ts", "first": 26, "lines": ["export function checkSentence(sentence: string, items: Protected[]): SentenceVerdict {", "  const n = normalise(sentence);", "  for (const it of items) {", "    if (has(n, normalise(it.phrase))) return { text: sentence, verdict: \"held\", label: it.label, rule: \"phrase\" };", "    const matched = it.terms.filter(t => has(n, normalise(t)));", "    if (matched.length >= it.minTerms) return { text: sentence, verdict: \"held\", label: it.label, rule: \"terms\", matched };", "  }", "  return { text: sentence, verdict: \"ok\" };"]}, "n_scripts": {"file": "snapclass-next/web/public/snap/sc/host-api.js", "first": 112, "lines": ["  function scripts() {", "    var ide = window.ide, sprite = ide && ide.currentSprite;", "    if (!sprite || !sprite.scripts) return [];", "    return sprite.scripts.children.filter(function (m) { return m instanceof BlockMorph; }).map(function (top) {", "      return { sprite: sprite.name, x: Math.round(top.left() - sprite.scripts.left()), y: Math.round(top.top() - sprite.scripts.top()), top: blockTree(top, true) };", "    });", "  }", "  var loadedListeners = [];", ""]}, "n_send_relay": {"file": "snapclass-next/web/src/mods/ModHost.tsx", "first": 108, "lines": ["      else if (m.scmod === \"send\") other({ scmod: \"message\", mod, data: m.data });"]}, "n_step": {"file": "snapclass-next/mods/watersim/src/engine.ts", "first": 83, "lines": ["export function step(w: World): World {", "  const delta = new Map<Piece, number>();", "  const add = (p: Piece, d: number) => delta.set(p, (delta.get(p) ?? 0) + d);", "  // levelling between neighbours (each pair once: right and down), except through a pump that is running", "  for (const a of w.pieces) {", "    for (const [dx, dy] of [[1, 0], [0, 1]] as const) {", "      const b = at(w, a.x + dx, a.y + dy);", "      if (!b || !passes(a) || !passes(b)) continue;", "      if ((a.kind === \"pump\" && (a.rate ?? 0) > 0) || (b.kind === \"pump\" && (b.rate ?? 0) > 0)) continue;", "      const fa = a.level / a.cap, fb = b.level / b.cap;"]}, "n_sv_activity": {"file": "snapclass-next/mods/shellview/static/snap/shellview.js", "first": 15, "lines": ["host.onActivity(function (e) {", "  // block events and slot edits change the text; runs, focus and idle do not", "  if (/^(Block|InputSlot|Sprite|IDE)\\./.test(e.message) && e.message !== \"Block.clickRun\") soon();", "});"]}, "n_sv_call": {"file": "snapclass-next/mods/shellview/static/panel/panel.js", "first": 40, "lines": ["  function translate() {", "    if (!scripts) return;", "    if (inflight) { again = true; return; }", "    var id = \"t\" + (++seq);", "    inflight = id;", "    bridge({ scmod: \"call\", id: id, path: \"translate\", method: \"POST\", body: { scripts: scripts, lang: lang } });", "    setTimeout(function () { if (inflight === id) { inflight = null; down(\"Translation is taking too long; it will try again on your next change.\"); } }, 10000);", "  }"]}, "n_sv_down": {"file": "snapclass-next/mods/shellview/static/panel/panel.js", "first": 48, "lines": ["  function down(text) {", "    state.className = \"state off\"; state.textContent = \"unavailable\";", "    note.hidden = false; note.textContent = text;", "    document.body.dataset.state = \"down\";", "  }"]}, "n_sv_result": {"file": "snapclass-next/mods/shellview/static/panel/panel.js", "first": 58, "lines": ["    else if (m.scmod === \"result\" && m.id === inflight) {", "      inflight = null;", "      if (m.status === 200 && m.body && typeof m.body.code === \"string\") {", "        state.className = \"state on\"; state.textContent = \"live\"; document.body.dataset.state = \"live\";", "        note.hidden = !m.body.untranslated;", "        if (m.body.untranslated) note.textContent = m.body.untranslated + (m.body.untranslated === 1 ? \" block is\" : \" blocks are\") + \" not translated yet (shown as comments).\";", "        show(m.body.code);", "      } else down(\"Translation is unavailable right now. Your blocks still work; this view will come back by itself.\");", "      if (again) { again = false; translate(); }"]}, "n_sv_retry": {"file": "snapclass-next/mods/shellview/static/panel/panel.js", "first": 86, "lines": ["  setInterval(function () { if (document.body.dataset.state === \"down\" && scripts) translate(); }, 15000);"]}, "n_sv_route": {"file": "snapclass-next/mods/shellview/src/app.ts", "first": 34, "lines": ["  api.post(\"/translate\", h(async (req, res) => {", "    const lang = req.body?.lang as Lang;", "    if (lang !== \"python\" && lang !== \"bash\") throw badRequest(\"lang must be python or bash\");", "    const scripts = req.body?.scripts;", "    if (!Array.isArray(scripts)) throw badRequest(\"scripts must be a list of scripts from host.scripts()\");", "    if (countNodes(scripts) > MAX_NODES) throw badRequest(`too many blocks to translate at once (more than ${MAX_NODES} parts)`);", "    res.json(translate(scripts as Script[], lang));", "  }));"]}, "n_sv_translate": {"file": "snapclass-next/mods/shellview/src/translate.ts", "first": 288, "lines": ["export function translate(scripts: Script[], lang: Lang): Translation {", "  const ctx: Ctx = { untranslated: 0, lines: [] };", "  const list = (scripts ?? []).filter(s => s && isNode(s.top));", "  // the order a reader expects: top to bottom, then left to right, as in the scripting area", "  list.sort((p, q) => (p.y ?? 0) - (q.y ?? 0) || (p.x ?? 0) - (q.x ?? 0));", "  list.forEach((sc, i) => {", "    if (i > 0) ctx.lines.push(\"\");", "    (lang === \"python\" ? pyScript : shScript)(sc, i + 1, ctx);", "  });", "  if (!list.length) ctx.lines.push(lang === \"python\" ? \"# No scripts yet: drag blocks into the scripting area.\" : \"# No scripts yet: drag blocks into the scripting area.\");", "  const lines = [...header(lang, ctx.lines), ...ctx.lines];", "  return { code: lines.join(\"\\n\") + \"\\n\", lines: lines.length, untranslated: ctx.untranslated, scripts: list.length };", "}"]}, "n_t_e10": {"file": "snapclass-next/mods/tutor/src/app.ts", "first": 87, "lines": ["    // what the tutor can see (E10): the live world (optional), the scripts as Python (optional)", "    const user = { id: u.id, role: u.role };", "    const [world, shell, brief] = await Promise.all([", "      callMod(\"watersim\", \"GET\", `/state?a=${t.assignmentId}`, user).catch(() => null),", "      Array.isArray(t.scripts) && t.scripts.length ? callMod(\"shellview\", \"POST\", \"/translate\", user, { scripts: t.scripts, lang: \"python\" }).catch(() => null) : Promise.resolve(null),", "      store.brief(t.assignmentId),", "    ]);", "    const simulation = world?.status === 200 ? describeWorld(world.body) : null;", "    const scripts = shell?.status === 200 && typeof shell.body?.code === \"string\" ? shell.body.code.split(\"\\n\").filter((l: string) => !l.startsWith(\"# Your Snap scripts\")).join(\"\\n\").trim() : null;", "    const messages = conversation(t.history, t.question, { brief, simulation, scripts });"]}, "n_t_post": {"file": "snapclass-next/mods/tutor/src/app.ts", "first": 39, "lines": ["  api.post(\"/turns\", h(async (req, res) => {", "    const u = req.user!, b = req.body ?? {};", "    const a = Number(b.a), s = Number(b.s);", "    if (!Number.isInteger(a) || a <= 0 || !Number.isInteger(s) || s <= 0) throw badRequest(\"a (assignment) and s (section) are required\");", "    if (!modSections(req).includes(s)) throw forbidden(\"The tutor is not on for that section\");", "    const question = typeof b.question === \"string\" ? b.question.trim() : \"\";", "    if (!question) throw badRequest(\"Ask a question first\");", "    if (question.length > MAX_QUESTION) throw badRequest(`Keep questions under ${MAX_QUESTION.toLocaleString()} characters`);", "    const m = findModel(providers, String(b.model ?? \"\"));", "    if (!m) throw badRequest(\"Pick a model from the list\");", "    if (!m.info.available) throw badRequest(`${m.info.label} is not available here${m.info.note ? ` (${m.info.note})` : \"\"}`);", "    // the limit protects paid models; the offline tutor costs nothing (SPEC 3.8)", "    // only turns on paid models count (the gate runs a thousand offline turns as one student: T20 demo)", "    const metered = providers.flatMap(p => p.models()).filter(x => x.metered).map(x => x.id);", "    if (m.info.metered && await store.countSince(u.id, now() - 3600_000, metered) >= LIMIT_PER_HOUR) throw new HttpError(429, `That is ${LIMIT_PER_HOUR} questions this hour, the most the tutor takes; try again later or ask your teacher`);", "    // B-46: the conversation comes from the tutor's own record, never from the page, so a student cannot write the", "    // tutor's earlier replies for it (b.history is ignored). The last 8 turns on this assignment, from the last 3 hours.", "    const history: Turn[] = await store.history(u.id, a, now() - HISTORY_MS, HISTORY_TURNS);", "    const id = await store.create({ userId: u.id, assignmentId: a, sectionId: s, model: m.info.id, question, history, scripts: Array.isArray(b.scripts) ? b.scripts : null });", "    res.status(202).setHeader(\"Operation-Location\", `/mods/tutor/api/turns/${id}/stream`);", "    res.json({ id, stream: `turns/${id}/stream`, model: m.info.id, label: m.info.label });"]}, "n_t_provider": {"file": "snapclass-next/mods/tutor/src/providers.ts", "first": 36, "lines": ["        // a tutor's replies are short chat turns: low effort, a modest cap (SPEC 3.8)", "        const stream = FALLBACK_OK.has(model)", "          ? c.beta.messages.stream({ model, max_tokens: 2048, system, messages, output_config: { effort: \"low\" }, betas: [\"server-side-fallback-2026-07-01\"], fallbacks: \"default\" }, { signal })", "          : c.messages.stream({ model, max_tokens: 2048, system, messages, output_config: { effort: \"low\" } }, { signal });", "        for await (const ev of stream) {", "          if (ev.type === \"content_block_delta\" && ev.delta.type === \"text_delta\") yield ev.delta.text;", "        }"]}, "n_t_release": {"file": "snapclass-next/mods/tutor/src/app.ts", "first": 106, "lines": ["    /** Each sentence is checked before the student sees it; a guard that cannot answer stops the turn (fail closed). */", "    const release = async (sentences: string[]) => {", "      for (const sentence of sentences) {", "        const r = await callMod(\"answerguard\", \"POST\", \"/check\", user, { a: t.assignmentId, s: t.sectionId, text: sentence });", "        n++;", "        if (r.status !== 200 || !r.body?.verdict) { log(`sentence ${n}: the guard did not answer (${r.status}); the turn stops`); failed = PAUSED; return false; }", "        log(`sentence ${n}: guard ${r.body.verdict}${r.body.verdict === \"held\" ? ` (${r.body.sentences?.[0]?.label ?? \"part of the answer\"})` : \"\"}`);", "        if (r.body.verdict === \"held\") { held++; send({ type: \"held\", label: r.body.sentences?.[0]?.label ?? \"part of the answer\" }); continue; }", "        released += (released ? \" \" : \"\") + sentence;", "        send({ type: \"delta\", text: sentence + \" \" });", "      }", "      return true;", "    };", "    try {", "      for await (const text of m.provider.stream(m.model, systemPrompt(brief), messages, ctl.signal)) {", "        if (ctl.signal.aborted) break;", "        if (!(await release(buf.push(text)))) { ctl.abort(); break; }", "      }", "      if (!failed && !ctl.signal.aborted) await release(buf.flush());"]}, "n_t_stream": {"file": "snapclass-next/mods/tutor/src/app.ts", "first": 62, "lines": ["  api.get(\"/turns/:id/stream\", h(async (req, res) => {", "    const u = req.user!;", "    const t = await store.get(req.params.id);", "    if (!t || t.userId !== u.id) throw notFound(\"No such turn\");", "    const m = findModel(providers, t.model);", "    if (!m) throw notFound(\"That model is no longer here\");", "    res.setHeader(\"content-type\", \"application/x-ndjson\");", "    res.setHeader(\"cache-control\", \"no-store\");", "    res.setHeader(\"x-accel-buffering\", \"no\");", "    res.flushHeaders();", "    const send = (o: unknown) => { if (!res.writableEnded) res.write(JSON.stringify(o) + \"\\n\"); };", "    // a finished turn is replayed (the bridge may subscribe again); a running one belongs to its first stream", "    if (t.status === \"done\" || t.status === \"failed\") {", "      send({ type: \"start\", model: t.model, label: m.info.label, replay: true });", "      if (t.released) send({ type: \"delta\", text: t.released });", "      send({ type: \"done\", released: (t.released ?? \"\").length, held: t.heldCount, ms: t.ms ?? 0 });", "      return res.end();", "    }", "    if (!(await store.start(t.id))) { send({ type: \"error\", message: \"This answer is already being written in another tab\" }); return res.end(); }", "", "    const t0 = now();", "    const ctl = new AbortController();", "    res.on(\"close\", () => ctl.abort());      // the student stopped it, or left: stop paying for tokens", "    send({ type: \"start\", model: t.model, label: m.info.label });"]}, "n_ticker": {"file": "snapclass-next/mods/watersim/src/worlds.ts", "first": 31, "lines": ["  tickAll(now = Date.now()) {", "    for (const [k, e] of this.worlds) {", "      if (now - e.seen > IDLE_MS) { this.worlds.delete(k); continue; }", "      step(e.world);", "    }", "  }", "", "  start() { this.timer ??= setInterval(() => this.tickAll(), TICK_MS); this.timer.unref?.(); }"]}, "n_tp_delta": {"file": "snapclass-next/mods/tutor/static/panel/panel.js", "first": 82, "lines": ["      var ev = m.line;", "      if (ev.type === \"delta\") { current.text += (current.text ? \" \" : \"\") + ev.text.trim(); current.body.textContent += ev.text; scroll(); }", "      else if (ev.type === \"held\") { current.el.appendChild(el(\"span\", \"held\", \"Part of this answer was hidden because it gave away the solution (\" + ev.label + \").\")); current.el.dataset.held = String(Number(current.el.dataset.held || 0) + 1); }", "      else if (ev.type === \"error\") { current.el.appendChild(el(\"div\", \"err\", ev.message)); current.el.dataset.error = \"1\"; }", "      else if (ev.type === \"done\") { current.el.dataset.done = \"1\"; bridge({ scmod: \"unsubscribe\", id: current.sub }); finish(current); }"]}, "n_tp_post": {"file": "snapclass-next/mods/tutor/static/panel/panel.js", "first": 67, "lines": ["    call(\"turns\", \"POST\", { a: ctx.assignmentId, s: ctx.sectionId, model: model, question: question, scripts: scripts }).then(function (r) {", "      if (mine !== current) return;", "      if (r.status !== 202) { bot.appendChild(el(\"div\", \"err\", (r.body && r.body.error) || \"The tutor could not take that question\")); mine.body.classList.remove(\"typing\"); current = null; setState(\"idle\"); return; }", "      mine.sub = \"t\" + (++seq);", "      bridge({ scmod: \"subscribe\", id: mine.sub, path: r.body.stream });"]}, "n_tp_switch": {"file": "snapclass-next/mods/tutor/static/panel/panel.js", "first": 101, "lines": ["  // switching model mid-answer: stop this one, ask the same question with the new model", "  $(\"model\").addEventListener(\"change\", function () {", "    if (!current) return;", "    var q = current.question;", "    stop(\"Stopped: switched to \" + labelOf(this.value) + \".\");", "    ask(q, true);", "  });"]}, "n_trace": {"file": "snapclass-next/web/public/snap/sc/trace.js", "first": 10, "lines": ["  window.Trace = {", "    log: function (message, data) {", "      var d;", "      try { d = data === undefined ? null : JSON.parse(JSON.stringify(data, function (k, v) { return (v && typeof v === \"object\" && v.constructor && v.constructor.name.indexOf(\"Morph\") >= 0) ? String(v.constructor.name) : v; })); }", "      catch (e) { d = String(data); }", "      var ev = { message: String(message).slice(0, 64), data: d, time: new Date().toISOString() };", "      if (!SKIP[message]) { queue.push(ev); if (queue.length > 200) queue.shift(); }", "      // mods that asked for activity get each event (host.onActivity, SPEC E2 v1.1), once the action that logged it has", "      // finished: Snap logs Block.snapped before the block attaches, so a mod reading the project then would not find it", "      // in its script (B-47). The event keeps the time it happened.", "      if (!listeners.length) return;", "      var copy = JSON.stringify(ev);", "      setTimeout(function () {", "        for (var i = 0; i < listeners.length; i++) {", "          try { listeners[i](JSON.parse(copy)); } catch (e) { console.error(e); }", "        }", "      }, 0);", "    },", "    flush: function () { var q = queue; queue = []; return q; },", "    listen: function (fn) { listeners.push(fn); }", "  };"]}, "n_trace_post": {"file": "snapclass-next/web/public/snap/sc/trace.js", "first": 31, "lines": ["  setInterval(function () {", "    if (!queue.length || window.parent === window) return;", "    window.parent.postMessage({ sc: \"trace\", events: window.Trace.flush() }, location.origin);", "  }, 2000);"]}, "n_valve_prim": {"file": "snapclass-next/mods/watersim/static/snap/watersim.js", "first": 146, "lines": ["host.registerPrimitive(\"ws_valve(id, open)\", function (id, open) { command(\"valve\", { id: text(id).trim(), open: open === true }); });"]}, "n_verify": {"file": "snapclass-next/web/src/mods/loader.ts", "first": 10, "lines": ["export async function fetchVerified(url: string, expected: string, fetchImpl: typeof fetch = fetch): Promise<Verified> {", "  let res: Response;", "  try { res = await fetchImpl(url, { cache: \"no-store\" }); } catch { return { ok: false, reason: \"unavailable\" }; }", "  if (!res.ok) return { ok: false, reason: res.status >= 500 ? \"unavailable\" : `answered ${res.status}` };", "  const code = await res.text();", "  const actual = await sha256Hex(code);", "  if (actual !== expected.toLowerCase()) return { ok: false, reason: \"its Snap script does not match the checksum in its manifest\" };", "  return { ok: true, code };", "}"]}, "n_wait": {"file": "snapclass-next/mods/watersim/snap/blocks.py", "first": 11, "lines": ["EXT = lambda key, args: f'<block s=\"doApplyExtension\"><l>{key}<\/l><list>{\"\".join(args)}<\/list><\/block>'", "REP = lambda key, args: f'<block s=\"reportApplyExtension\"><l>{key}<\/l><list>{\"\".join(args)}<\/list><\/block>'", "WAIT = f'<block s=\"doWaitUntil\">{REP(\"ws_idle()\", [])}<\/block>' + EXT(\"ws_check()\", [])"]}, "n_ws_level": {"file": "snapclass-next/mods/watersim/static/snap/watersim.js", "first": 159, "lines": ["host.registerPrimitive(\"ws_level(id)\", function (id) {", "  // any case, and an unknown id is an error rather than an empty tank (bug B-14)", "  var want = text(id).trim().toLowerCase(), levels = (latest && latest.levels) || {};", "  for (var k in levels) if (k.toLowerCase() === want) return levels[k];", "  if (!latest) return 0;", "  throw new Error(\"Water and pipes: no tank or piece called \" + text(id).trim());", "});"]}, "n_ws_stream": {"file": "snapclass-next/mods/watersim/src/app.ts", "first": 90, "lines": ["  api.get(\"/stream\", h(async (req, res) => {", "    const c = ctx(req);", "    const s = ndjson(res);", "    const send = () => s.send(state(worlds.get(c.userId, c.assignmentId)));", "    send();", "    const t = setInterval(send, opts.streamMs ?? FRAME_MS);", "    req.on(\"close\", () => clearInterval(t));", "  }));"]}, "n_ws_valve": {"file": "snapclass-next/mods/watersim/src/app.ts", "first": 71, "lines": ["  api.post(\"/valve\", h(async (req, res) => {", "    const c = ctx(req);", "    const w = worlds.get(c.userId, c.assignmentId);", "    sim(() => setValve(w, String(req.body?.id), req.body?.open === true));", "    await emit(\"watersim.command\", c, { cmd: \"valve\", id: req.body?.id, open: req.body?.open === true });", "    res.json(state(w));", "  }));"]}, "patch_wrap": {"file": "SnapClass today, Snap-10.7.2/snap-patch/changesToGui.js (code not shown in this public copy)", "first": 100, "lines": []}, "post_struggle": {"file": "SnapClass today, server/routes/struggle/post-struggle-state.js (code not shown in this public copy)", "first": 37, "lines": []}, "post_sub_call": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 1961, "lines": []}, "pub_flush": {"file": "SnapClass today, Snap-10.7.2/snap-patch/struggle-detection/strugglePublisher.js (code not shown in this public copy)", "first": 326, "lines": []}, "pub_url": {"file": "SnapClass today, Snap-10.7.2/snap-patch/struggle-detection/strugglePublisher.js (code not shown in this public copy)", "first": 98, "lines": []}, "route_default": {"file": "SnapClass today, client/app/app-routing.module.ts (code not shown in this public copy)", "first": 96, "lines": []}, "sa_frame": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.html (code not shown in this public copy)", "first": 8, "lines": []}, "schema_barrel": {"file": "SnapClass today, server/db/schema/index.ts (code not shown in this public copy)", "first": 1, "lines": []}, "snap_context": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 5572, "lines": []}, "snap_mapped": {"file": "SnapClass today, Snap-10.7.2/src/blocks.js (code not shown in this public copy)", "first": 4952, "lines": []}, "snap_parse": {"file": "SnapClass today, Snap-10.7.2/src/threads.js (code not shown in this public copy)", "first": 5726, "lines": []}, "snap_ready": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 2267, "lines": []}, "snap_tags": {"file": "SnapClass today, Snap-10.7.2/snap.html (code not shown in this public copy)", "first": 44, "lines": []}, "snap_tolisp": {"file": "SnapClass today, Snap-10.7.2/src/blocks.js (code not shown in this public copy)", "first": 4573, "lines": []}, "snap_unsaved": {"file": "SnapClass today, Snap-10.7.2/src/gui.js (code not shown in this public copy)", "first": 3644, "lines": []}, "snippet_es": {"file": "SnapClass today, client/app/student/student-assignment/student-assignment.component.ts (code not shown in this public copy)", "first": 4607, "lines": []}, "snippet_sse": {"file": "SnapClass today, server/routes/code-snippets/get-code-snippet-stream.js (code not shown in this public copy)", "first": 7, "lines": []}, "spa": {"file": "SnapClass today, app.js (code not shown in this public copy)", "first": 145, "lines": []}, "sse": {"file": "SnapClass today, server/routes/struggle/get-struggle-stream.js (code not shown in this public copy)", "first": 54, "lines": []}, "static": {"file": "SnapClass today, app.js (code not shown in this public copy)", "first": 60, "lines": []}, "store_logs": {"file": "SnapClass today, server/model/Logs.js (code not shown in this public copy)", "first": 26, "lines": []}, "store_user": {"file": "SnapClass today, client/app/services/auth.service.ts (code not shown in this public copy)", "first": 46, "lines": []}, "url_token": {"file": "SnapClass today, server/middleware/authenticate.middleware.ts (code not shown in this public copy)", "first": 230, "lines": []}, "verify_pw": {"file": "SnapClass today, server/lib/password.ts (code not shown in this public copy)", "first": 64, "lines": []}, "wrap_catchall": {"file": "SnapClass today, server/modules/auth-wrapper/routes.ts (code not shown in this public copy)", "first": 91, "lines": []}, "wrap_consts": {"file": "SnapClass today, server/modules/auth-wrapper/constants.ts (code not shown in this public copy)", "first": 107, "lines": []}, "wrap_continue": {"file": "SnapClass today, server/modules/auth-wrapper/routes.ts (code not shown in this public copy)", "first": 45, "lines": []}, "wrap_grade": {"file": "SnapClass today, server/modules/auth-wrapper/grading/routes.ts (code not shown in this public copy)", "first": 30, "lines": []}, "wrap_guard": {"file": "SnapClass today, server/modules/auth-wrapper/controller.ts (code not shown in this public copy)", "first": 33, "lines": []}, "wrap_help": {"file": "SnapClass today, server/modules/auth-wrapper/help/routes.ts (code not shown in this public copy)", "first": 33, "lines": []}, "wrap_logs": {"file": "SnapClass today, server/modules/auth-wrapper/logs/routes.ts (code not shown in this public copy)", "first": 22, "lines": []}, "wrap_sub_route": {"file": "SnapClass today, server/modules/auth-wrapper/submissions/routes.ts (code not shown in this public copy)", "first": 25, "lines": []}}</script>
+<script>
+/* Request-lifecycle animation, after the ToyTalk journal's tab 9.
+   FlowScene(root, scene, code) draws scene.nodes as boxes inside scene.zones,
+   then plays one flow at a time: each step moves marks along paths of nodes
+   (a request, a reply, a stream or an event, told apart by shape and colour),
+   lights the pieces that work, shows the code that runs (or, for a proposed
+   flow, the contract), and keeps a text list of every step. */
+(function () {
+  "use strict";
+  const NS = "http://www.w3.org/2000/svg";
+  const KINDS = {
+    req: { label: "a request", shape: "circle" },
+    res: { label: "a reply", shape: "square" },
+    stream: { label: "a stream (kept open)", shape: "diamond" },
+    msg: { label: "an event or queued message", shape: "triangle" },
+  };
+  function svgEl(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function htmlEl(tag, cls, parent, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function markShape(kind, parent, size) {
+    const s = size || 7;
+    if (kind === "res") return svgEl("rect", { x: -s, y: -s, width: 2 * s, height: 2 * s, class: "fx-m fx-res" }, parent);
+    if (kind === "stream") return svgEl("polygon", { points: `0,${-s - 2} ${s + 2},0 0,${s + 2} ${-s - 2},0`, class: "fx-m fx-stream" }, parent);
+    if (kind === "msg") return svgEl("polygon", { points: `0,${-s - 2} ${s + 2},${s} ${-s - 2},${s}`, class: "fx-m fx-msg" }, parent);
+    return svgEl("circle", { r: s, class: "fx-m fx-req" }, parent);
+  }
+
+  function FlowScene(root, scene, code) {
+    const W = scene.boxW || 150, H = scene.boxH || 44;
+    const N = scene.nodes, VIA = scene.via || {};
+    const flows = scene.flows;
+    const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let flow = flows[0], at = 0, playing = false, timer = null, anim = null;
+
+    root.classList.add("fx");
+    const pick = htmlEl("div", "fx-pick", root);
+    pick.setAttribute("role", "tablist");
+    pick.setAttribute("aria-label", scene.pickLabel || "Requests");
+    const sum = htmlEl("p", "fx-sum", root);
+    const stage = htmlEl("div", "fx-stage", root);
+    const sceneBox = htmlEl("div", "fx-scene", stage);
+    const svg = svgEl("svg", { viewBox: scene.viewBox || "0 0 1000 620", role: "img" }, sceneBox);
+    svgEl("title", {}, svg).textContent = scene.title || "Request animation";
+    const panel = htmlEl("figure", "fx-code", stage);
+    panel.setAttribute("aria-label", "The code or contract for this step");
+    const panelH = htmlEl("figcaption", "", panel);
+    const panelP = htmlEl("pre", "", panel);
+    const now = htmlEl("p", "fx-now", root);
+    now.setAttribute("aria-live", "polite");
+    const ctl = htmlEl("div", "fx-ctl", root);
+    const bPrev = htmlEl("button", "", ctl, "◀"); bPrev.type = "button"; bPrev.setAttribute("aria-label", "Previous step");
+    const bPlay = htmlEl("button", "fx-play", ctl, "Play"); bPlay.type = "button";
+    const bNext = htmlEl("button", "", ctl, "▶"); bNext.type = "button"; bNext.setAttribute("aria-label", "Next step");
+    const bRestart = htmlEl("button", "", ctl, "Restart"); bRestart.type = "button";
+    const spLabel = htmlEl("label", "", ctl, "Speed ");
+    const speed = htmlEl("select", "", spLabel);
+    [["0.5", "slow"], ["1", "normal"], ["2", "fast"]].forEach(([v, t]) => {
+      const o = htmlEl("option", "", speed, t); o.value = v; if (v === "1") o.selected = true;
+    });
+    const count = htmlEl("span", "fx-count", ctl);
+    const key = htmlEl("ul", "fx-key", root);
+    for (const k in KINDS) {
+      const li = htmlEl("li", "", key);
+      const s = svgEl("svg", { width: 22, height: 18, "aria-hidden": "true" }, li);
+      const g = svgEl("g", { transform: "translate(11,9)" }, s);
+      markShape(k, g, 5);
+      li.appendChild(document.createTextNode(" " + KINDS[k].label));
+    }
+    const details = htmlEl("details", "fx-list", root);
+    htmlEl("summary", "", details, "Every step as text");
+    const steps = htmlEl("ol", "", details);
+
+    // Zones, edges, nodes.
+    const gZones = svgEl("g", {}, svg), gEdges = svgEl("g", {}, svg), gLive = svgEl("g", {}, svg);
+    const gNodes = svgEl("g", {}, svg), gMarks = svgEl("g", {}, svg);
+    (scene.zones || []).forEach(z => {
+      svgEl("rect", { x: z.x, y: z.y, width: z.w, height: z.h, rx: 14, class: "fx-zone fx-zone-" + (z.tone || "a") }, gZones);
+      const t = svgEl("text", { x: z.x + 12, y: z.y + 20, class: "fx-zlabel" }, gZones);
+      t.textContent = z.label;
+    });
+    const box = {};
+    for (const id in N) {
+      const [x, y, label, kind] = N[id];
+      const g = svgEl("g", { class: "fx-node fx-" + (kind || "svc"), "data-n": id }, gNodes);
+      svgEl("rect", { x: x - W / 2, y: y - H / 2, width: W, height: H, rx: kind === "store" ? 16 : 7 }, g);
+      const parts = String(label).split("\n");
+      parts.forEach((p, i) => {
+        const t = svgEl("text", { x, y: y + 5 + (i - (parts.length - 1) / 2) * 15, "text-anchor": "middle" }, g);
+        t.textContent = p;
+      });
+      box[id] = g;
+    }
+    function border(a, toward) {
+      const [x, y] = N[a], dx = toward[0] - x, dy = toward[1] - y;
+      const s = Math.min(dx ? (W / 2) / Math.abs(dx) : Infinity, dy ? (H / 2) / Math.abs(dy) : Infinity);
+      return [x + dx * s, y + dy * s];
+    }
+    function segment(a, b) {
+      const fwd = VIA[a + ">" + b], back = VIA[b + ">" + a];
+      const mid = fwd ? fwd.slice() : back ? back.slice().reverse() : [];
+      if (!mid.length) return [border(a, N[b]), border(b, N[a])];
+      return [border(a, mid[0]), ...mid, border(b, mid[mid.length - 1])];
+    }
+    function polyline(path) {
+      let pts = [];
+      for (let i = 0; i < path.length - 1; i++) {
+        const s = segment(path[i], path[i + 1]);
+        pts = pts.length ? pts.concat([N[path[i]].slice(0, 2)], s) : s;
+      }
+      return pts;
+    }
+    (scene.edges || []).forEach(([a, b, dashed]) => {
+      svgEl("polyline", { points: segment(a, b).map(p => p.join(",")).join(" "), class: "fx-edge" + (dashed ? " fx-dash" : "") }, gEdges);
+    });
+
+    function showCode(step) {
+      panelP.textContent = "";
+      if (step.c && code && code[step.c]) {
+        const c = code[step.c];
+        const hl = step.hl ? (typeof step.hl[0] === "number" ? [step.hl] : step.hl) : [];
+        const lit = n => hl.some(([a, b]) => n >= a && n <= b);
+        panelH.textContent = c.file + ":" + c.first + "–" + (c.first + c.lines.length - 1);
+        let first = null;
+        c.lines.forEach((line, i) => {
+          const n = c.first + i, row = htmlEl("span", "fx-row" + (lit(n) ? " fx-lit" : ""), panelP);
+          htmlEl("span", "fx-ln", row, String(n));
+          row.appendChild(document.createTextNode(line + "\n"));
+          if (lit(n) && first === null) first = row;
+        });
+        panelP.scrollTop = first ? Math.max(0, first.offsetTop - panelP.offsetTop - 24) : 0;
+        panel.hidden = false;
+      } else if (step.x) {
+        panelH.textContent = step.x.h;
+        step.x.body.split("\n").forEach(line => {
+          const row = htmlEl("span", "fx-row", panelP);
+          row.appendChild(document.createTextNode(line + "\n"));
+        });
+        panelP.scrollTop = 0;
+        panel.hidden = false;
+      } else {
+        panelH.textContent = scene.noCode || "No code for this step";
+        panel.hidden = false;
+      }
+    }
+
+    function clearMotion() {
+      if (anim) cancelAnimationFrame(anim);
+      anim = null;
+      gMarks.textContent = "";
+      gLive.textContent = "";
+    }
+    function light(step) {
+      const on = new Set(step.work || []);
+      (step.go || []).forEach(m => { on.add(m.path[0]); on.add(m.path[m.path.length - 1]); });
+      for (const id in box) box[id].classList.toggle("fx-on", on.has(id));
+    }
+    function move(step, done) {
+      clearMotion();
+      const items = (step.go || []).map(m => {
+        const pts = polyline(m.path);
+        svgEl("polyline", { points: pts.map(p => p.join(",")).join(" "), class: "fx-live fx-live-" + m.kind }, gLive);
+        const lens = [];
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) {
+          const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+          lens.push(d); total += d;
+        }
+        const g = svgEl("g", {}, gMarks);
+        markShape(m.kind, g);
+        return { pts, lens, total, g };
+      });
+      if (!items.length) { done(); return; }
+      const place = (it, f) => {
+        let d = f * it.total, i = 0;
+        while (i < it.lens.length - 1 && d > it.lens[i]) { d -= it.lens[i]; i++; }
+        const a = it.pts[i], b = it.pts[i + 1], r = it.lens[i] ? d / it.lens[i] : 1;
+        it.g.setAttribute("transform", `translate(${a[0] + (b[0] - a[0]) * r},${a[1] + (b[1] - a[1]) * r})`);
+      };
+      if (reduce) { items.forEach(it => place(it, 1)); done(); return; }
+      const longest = Math.max(...items.map(it => it.total));
+      const dur = Math.max(700, longest * 2.2) / +speed.value;
+      const t0 = performance.now();
+      const tick = t => {
+        const f = Math.min(1, (t - t0) / dur);
+        items.forEach(it => place(it, f));
+        if (f < 1) anim = requestAnimationFrame(tick); else { anim = null; done(); }
+      };
+      anim = requestAnimationFrame(tick);
+    }
+
+    function render() {
+      const step = flow.steps[at];
+      light(step);
+      showCode(step);
+      now.textContent = (at + 1) + ". " + step.t;
+      count.textContent = "Step " + (at + 1) + " of " + flow.steps.length;
+      [...steps.children].forEach((li, i) => li.classList.toggle("fx-cur", i === at));
+      [...steps.children].forEach((li, i) => li.toggleAttribute("aria-current", i === at));
+      move(step, () => {
+        if (!playing) return;
+        clearTimeout(timer);
+        const dwell = (900 + step.t.length * 28) / +speed.value;
+        timer = setTimeout(() => {
+          if (!playing) return;
+          if (at < flow.steps.length - 1) { at++; render(); } else stop();
+        }, dwell);
+      });
+    }
+    function stop() { playing = false; clearTimeout(timer); bPlay.textContent = "Play"; }
+    function choose(f) {
+      stop(); flow = f; at = 0;
+      [...pick.children].forEach(b => b.setAttribute("aria-selected", String(b.dataset.f === f.id)));
+      sum.textContent = f.sum;
+      steps.textContent = "";
+      f.steps.forEach((s, i) => {
+        const li = htmlEl("li", "", steps);
+        const b = htmlEl("button", "fx-jump", li, s.t);
+        b.type = "button";
+        b.addEventListener("click", () => { stop(); at = i; render(); });
+      });
+      render();
+    }
+    flows.forEach(f => {
+      const b = htmlEl("button", "", pick, f.title);
+      b.type = "button"; b.dataset.f = f.id; b.setAttribute("role", "tab");
+      b.addEventListener("click", () => choose(f));
+    });
+    bPrev.addEventListener("click", () => { stop(); if (at > 0) { at--; render(); } });
+    bNext.addEventListener("click", () => { stop(); if (at < flow.steps.length - 1) { at++; render(); } });
+    bRestart.addEventListener("click", () => { stop(); at = 0; render(); });
+    bPlay.addEventListener("click", () => {
+      if (playing) { stop(); return; }
+      if (at >= flow.steps.length - 1) at = 0;
+      playing = true; bPlay.textContent = "Pause"; render();
+    });
+    root.addEventListener("keydown", e => {
+      if (e.target.closest("select,textarea,input")) return;
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault(); e.stopPropagation();
+        (e.key === "ArrowRight" ? bNext : bPrev).click();
+      }
+    });
+    choose(flows.find(f => f.id === scene.start) || flows[0]);
+    return { stop, choose: id => choose(flows.find(f => f.id === id) || flows[0]) };
+  }
+  window.FlowScene = FlowScene;
+})();
+
+</script>
+<script>
+/* SnapClass as it runs today: measured from the zip copy (notes/snapclass.sha256),
+   traced from the code, not watched running (SC-Q6 A). Every step names a code
+   excerpt from tools/guide/excerpts.py (c) and the lines to highlight (hl). */
+window.SCENES = window.SCENES || {};
+(function () {
+  const r = path => ({ path, kind: "req" });
+  const s = path => ({ path, kind: "res" });
+  const st = path => ({ path, kind: "stream" });
+  window.SCENES.current = {
+    id: "current",
+    title: "SnapClass today: one Node process serving the page, Snap and the API",
+    viewBox: "0 0 1000 640",
+    pickLabel: "Requests in SnapClass today",
+    nodes: {
+      ng: [90, 190, "Angular page", "client"],
+      snap: [90, 320, "Snap IDE\n(iframe)", "client"],
+      ls: [90, 450, "localStorage", "store"],
+      tch: [90, 585, "Teacher's page", "client"],
+      express: [300, 320, "Express\napp.js :443"],
+      stat: [510, 70, "Static files\nAngular · Snap"],
+      mods: [510, 180, "auth · user\nmodules (TS)"],
+      wrap: [510, 320, "auth-wrapper\nguard (TS)"],
+      mem: [510, 520, "Struggle state\nin memory"],
+      google: [720, 70, "Google OAuth", "ext"],
+      drizzle: [720, 180, "Drizzle\nmysql2 pool"],
+      legacy: [720, 320, "Legacy route\n(JS)"],
+      model: [720, 430, "Legacy model\nmysql-json"],
+      cloud: [915, 70, "Snap Cloud", "ext"],
+      db: [915, 320, "MySQL 8", "store"],
+    },
+    zones: [
+      { x: 8, y: 118, w: 164, h: 372, label: "Student's browser", tone: "a" },
+      { x: 8, y: 536, w: 164, h: 96, label: "Teacher's browser", tone: "a" },
+      { x: 205, y: 22, w: 600, h: 606, label: "One Node process: app.js", tone: "b" },
+      { x: 835, y: 22, w: 160, h: 606, label: "Outside the process", tone: "d" },
+    ],
+    edges: [
+      ["ng", "express"], ["snap", "express"], ["tch", "express"], ["ng", "ls"], ["ng", "snap"],
+      ["express", "stat"], ["express", "mods"], ["express", "wrap"], ["express", "mem"],
+      ["wrap", "legacy"], ["legacy", "model"], ["model", "db"], ["mods", "drizzle"], ["drizzle", "db"],
+      ["wrap", "drizzle"], ["mods", "cloud", true], ["mods", "google", true],
+    ],
+    via: {},
+    flows: [
+      { id: "open", title: "Open SnapClass",
+        sum: "A first visit: one Express process hands out the Angular app and Snap from disk, and the browser decides on its own whether someone is signed in.",
+        steps: [
+          { go: [r(["ng", "express"])], t: "The browser asks for /snapclass/ over HTTPS. One Express process, listening on 127.0.0.1, answers everything: files, the API and the Snap IDE.", c: "listen", hl: [171, 171] },
+          { go: [r(["express", "stat"]), s(["stat", "express", "ng"])], t: "Express serves four folders under /snapclass straight from disk: the Angular build, the vendored Snap 10.7.2, cellular and config.", c: "static", hl: [60, 63] },
+          { work: ["express"], t: "A path with no file extension falls through to the SPA fallback, which returns Angular's index.html, so a deep link such as /snapclass/student/landing still loads the app.", c: "spa", hl: [145, 149] },
+          { work: ["ng"], t: "Angular starts. An empty path redirects to the guest landing page.", c: "route_default", hl: [96, 96] },
+          { work: ["ng", "ls"], t: "Pages for signed-in users sit behind AuthGuard, which asks AuthService whether the user is logged in. It makes no request.", c: "guard", hl: [24, 30] },
+          { work: ["ng", "ls"], t: "loggedIn() reads the token from localStorage and checks only its expiry date, in the browser. A token the server would refuse still opens the page; the first API call finds out.", c: "logged_in", hl: [92, 97] },
+          { go: [r(["ng", "express", "wrap"])], t: "That first API call carries the token: an interceptor adds Authorization: Bearer to every request Angular's HttpClient sends.", c: "interceptor", hl: [26, 31] },
+          { work: ["wrap"], t: "On the server, identifyRequester verifies the token with the shared secret and keeps the user id. A bad token gets 401 before any route runs.", c: "identify", hl: [61, 72] },
+        ] },
+      { id: "signin", title: "Sign in",
+        sum: "A password sign-in through the TypeScript auth module, with two fallbacks the code still carries: old SHA-512 hashes, and accounts that only exist in the Snap Cloud.",
+        steps: [
+          { go: [r(["ng", "express", "mods"])], t: "The sign-in form posts the username and password to /api/v1/auth/login.", c: "login_call", hl: [989, 996] },
+          { work: ["mods"], t: "The auth module's router parses the body and hands it to AuthService.login.", c: "auth_route", hl: [41, 41] },
+          { go: [r(["mods", "drizzle", "db"])], work: ["mods"], t: "login validates the input with Zod, then loads the account by username through Drizzle, on the modules' own mysql2 pool.", c: "find_creds", hl: [116, 125] },
+          { go: [s(["db", "drizzle", "mods"])], work: ["mods"], t: "verifyPassword accepts argon2id hashes, and also legacy 128-character SHA-512 hashes, which it compares in constant time and asks to have upgraded to argon2id.", c: "verify_pw", hl: [68, 75] },
+          { go: [r(["mods", "cloud"])], t: "An account with an empty password hash was made through the Snap Cloud. The server signs in to the Snap Cloud with the same username and password.", c: "auth_cloud", hl: [255, 268] },
+          { go: [s(["cloud", "mods"])], t: "That call goes through server/cloud.js, a server-side copy of Snap's cloud client that defaults to snap.berkeley.edu: cloudLogin wraps its login in a promise. On success the server stores an argon2 hash, so the cloud is not asked again.", c: "cloud_login", hl: [105, 115] },
+          { work: ["mods"], t: "issueLoginToken signs a JWT with HS256 and the one shared secret, SNAPCLASS_SECRET. Any process that verifies a token needs that same secret.", c: "issue_token", hl: [61, 66] },
+          { go: [s(["mods", "express", "ng"])], work: ["ls"], t: "The token and the user come back. The page stores both in localStorage, as id_token and user.", c: "store_user", hl: [46, 56] },
+          { go: [r(["ng", "express", "wrap", "legacy"])], t: "It posts a login event to /api/v1/logs, then sends Teachers and Admins to the teacher landing page and Students to the student landing page.", c: "after_login", hl: [[425, 435], [448, 453]] },
+        ] },
+      { id: "save", title: "Save work in Snap",
+        sum: "The longest path: the Angular page pulls the project out of the Snap iframe, saves it in the browser first, then sends it through the auth-wrapper into a legacy route and model.",
+        steps: [
+          { work: ["ng", "snap"], t: "The assignment page loads snap.html in an iframe and writes snapclassContext into it: student, section, assignment and the API base, which the Snap patches read.", c: "snap_context", hl: [5572, 5580] },
+          { work: ["ng"], t: "Every 120 seconds, and on Save or Submit, the page captures the project, adds a backup, and saves the submission.", c: "autosave", hl: [[375, 375], [391, 403]] },
+          { go: [r(["ng", "snap"]), s(["snap", "ng"])], t: "captureAndRefreshWorkspace asks the Snap IDE in the iframe to serialize the project to XML, and refuses XML that does not parse.", c: "capture", hl: [494, 500] },
+          { go: [r(["ng", "express", "wrap", "legacy", "model", "db"])], t: "The XML is posted to /api/v1/backups as a timestamped backup; these make the version history.", c: "add_backup", hl: [1651, 1655] },
+          { work: ["ng", "ls"], t: "The submission is saved locally first: written to localStorage and reported as saved, with a sync to the server queued in the background.", c: "local_first", hl: [1711, 1716] },
+          { go: [r(["ng", "express"])], t: "The sync posts to /api/v1/submissions (or PUTs to /api/v1/submissions/:id once one exists) with the XML, assignment, section, level and the submitted flag.", c: "post_sub_call", hl: [1961, 1961] },
+          { work: ["express", "wrap"], t: "Inside Express, the legacy app mounts the auth-wrapper router before every legacy route.", c: "mount_wrapper", hl: [30, 30] },
+          { work: ["wrap"], t: "The wrapper's submissions router authenticates the request and calls authorizeCreate.", c: "wrap_sub_route", hl: [25, 25] },
+          { go: [r(["wrap", "drizzle", "db"]), s(["db", "drizzle", "wrap"])], t: "The guard loads the requester's current role, runs the resource's checks (abilities, enrolment, the body's schema), marks the request authorized and leaves the wrapper with next('router').", c: "wrap_guard", hl: [[40, 48], [71, 78]] },
+          { go: [r(["wrap", "legacy"])], t: "Express goes on to the original route, mounted later in routes.js.", c: "wrap_continue", hl: [50, 51] },
+          { work: ["legacy"], t: "post-submission.js hands the body to the Submission model.", c: "legacy_sub", hl: [17, 21] },
+          { go: [r(["legacy", "model", "db"])], t: "addSubmission compacts embedded media, looks for an existing row, and UPDATEs or INSERTs into submission.", c: "model_sub", hl: [[242, 254], [268, 268]] },
+          { go: [s(["db", "model", "legacy", "express", "ng"])], t: "The legacy models use mysql-json, a second MySQL client with credentials from config.js, separate from Drizzle's pool. Two clients reach one database.", c: "mysql_json", hl: [1, 10] },
+        ] },
+      { id: "activity", title: "Snap reports activity",
+        sum: "Two Snap patches report what the student does: logging writes research traces to MySQL, and struggle detection pushes live snapshots that exist only in the server's memory.",
+        steps: [
+          { work: ["snap"], t: "The logging patch in snap-patch/logging records IDE events and batches them with the user's ids.", c: "log_store", hl: [12, 16] },
+          { go: [r(["snap", "express", "wrap"])], t: "Each batch is posted to /api/v1/logs/storeActionLogs with the token from localStorage as a Bearer header.", c: "log_xhr", hl: [91, 94] },
+          { work: ["wrap"], t: "The auth-wrapper authorizes it like any other legacy route.", c: "wrap_logs", hl: [22, 23] },
+          { go: [r(["wrap", "legacy"])], t: "post-log.js passes the user info and the logs to the Logs model.", c: "legacy_log", hl: [17, 21] },
+          { go: [r(["legacy", "model", "db"])], t: "storeLogs compacts project media, then runs one INSERT INTO trace per log entry, and the request waits for all of them. The trace table is the research data.", c: "store_logs", hl: [[35, 36], [64, 75]] },
+          { work: ["snap"], t: "Separately, the struggle-detection patch scores the student's activity in the browser and queues snapshots for the server.", c: "pub_url", hl: [98, 110] },
+          { go: [r(["snap", "express", "wrap"])], t: "flushQueue posts each snapshot to /api/v1/struggle/state, in order, with a sequence number.", c: "pub_flush", hl: [326, 350] },
+          { go: [r(["wrap", "mem"])], t: "After the wrapper authorizes it, post-struggle-state validates the snapshot and keeps only the newest one per student.", c: "post_struggle", hl: [[37, 45], [51, 58]] },
+          { work: ["mem"], t: "That state is a Map inside this Node process. Nothing is written to MySQL, it is lost on restart, and a second server process would not see it.", c: "mem_state", hl: [9, 10] },
+          { go: [st(["tch", "express", "mem"])], t: "A teacher watching the section holds GET /api/v1/struggle/stream/:sectionId open: it sends the current snapshot, then a heartbeat every 15 seconds.", c: "sse", hl: [[54, 75], [80, 86]] },
+          { go: [st(["mem", "express", "tch"])], t: "broadcastToSection writes a student-update event to every teacher stream open for that section.", c: "broadcast", hl: [131, 145] },
+          { work: ["tch"], t: "The teacher's page opened that stream with EventSource, passing the token in the query string because EventSource cannot send headers, and redraws on each event.", c: "event_source", hl: [[119, 119], [139, 145]] },
+        ] },
+      { id: "help", title: "Ask for help",
+        sum: "A help request is a row in MySQL. Teachers find out by polling for counts every three seconds.",
+        steps: [
+          { work: ["ng"], t: "On the assignment page the student asks for help.", c: "help_call", hl: [4565, 4570] },
+          { go: [r(["ng", "express", "wrap"])], t: "postHelpCode posts the user, the assignment and the code to /api/v1/help.", c: "api_help", hl: [526, 538] },
+          { work: ["wrap"], t: "The auth-wrapper authorizes the request.", c: "wrap_help", hl: [33, 33] },
+          { go: [r(["wrap", "legacy"])], t: "post-help.js hands it to the Help model.", c: "legacy_help", hl: [11, 15] },
+          { go: [r(["legacy", "model", "db"]), s(["db", "model", "legacy", "express", "ng"])], t: "addHelpReq requires a user and an assignment, compacts the code's media and inserts a help row.", c: "help_model", hl: [40, 55] },
+          { work: ["tch"], t: "Nothing tells the teacher. Each teacher's page runs a timer every 3000 ms.", c: "help_interval", hl: [12, 12] },
+          { go: [r(["tch", "express", "wrap", "legacy", "model", "db"])], t: "On each tick it asks for the help count across the teacher's sections: twenty requests a minute per open teacher tab, whether or not anyone needs help.", c: "help_refresh", hl: [66, 80] },
+          { go: [s(["db", "model", "legacy", "express", "tch"])], t: "The count comes back and the badge updates.", c: "help_refresh", hl: [70, 74] },
+        ] },
+      { id: "grade", title: "Grade a submission",
+        sum: "A teacher's grade is written point by point through a legacy model; the student sees it the next time their page asks.",
+        steps: [
+          { work: ["tch"], t: "The teacher fills in rubric points and feedback. The page PUTs to /api/v1/grading/assignments/:a/students/:s when a grade exists, otherwise it POSTs to /api/v1/grading.", c: "grade_call", hl: [1045, 1050] },
+          { go: [r(["tch", "express", "wrap"])], t: "The auth-wrapper's grading router authenticates and authorizes it.", c: "wrap_grade", hl: [30, 30] },
+          { go: [r(["wrap", "legacy"])], t: "Express goes on to the legacy grading route.", c: "mount_grade", hl: [613, 614] },
+          { go: [r(["legacy", "model", "db"])], t: "addGrade starts one write per rubric point and replies when the last point's write returns, not when all of them have. A multiple-choice grade writes one total instead.", c: "grade_model", hl: [[116, 131], [132, 136]] },
+          { go: [s(["db", "model", "legacy", "express", "tch"])], t: "The reply goes back to the teacher. No event reaches the student: they see the grade the next time their page loads it.", c: "legacy_grade", hl: [15, 19] },
+        ] },
+    ],
+  };
+})();
+
+/* SnapClass as proposed: a DESIGN, not measured. Each step shows the contract it
+   relies on (x), not code. Patterns: Azure Resource Manager's asynchronous
+   operations (202 + Azure-AsyncOperation / Location + Retry-After, polled to
+   Succeeded / Failed / Canceled) and VM Image Builder's submit-then-Run split;
+   ToyTalk's public-key token checks and RabbitMQ. */
+window.SCENES = window.SCENES || {};
+(function () {
+  const r = path => ({ path, kind: "req" });
+  const s = path => ({ path, kind: "res" });
+  const st = path => ({ path, kind: "stream" });
+  const m = path => ({ path, kind: "msg" });
+  const x = (h, body) => ({ h, body });
+  window.SCENES.proposed = {
+    id: "proposed",
+    title: "SnapClass as proposed: a gateway, synchronous front ends, an event bus, asynchronous workers and mods",
+    viewBox: "0 0 1080 640",
+    pickLabel: "Requests in the proposed SnapClass",
+    noCode: "Proposed: no code yet",
+    nodes: {
+      sb: [90, 170, "Student page\nAngular + Snap", "client"],
+      msnap: [90, 300, "Mod script in Snap\n(from a manifest)", "mod"],
+      tb: [90, 470, "Teacher page", "client"],
+      gw: [270, 320, "Gateway\nTLS · routing", "new"],
+      id: [450, 80, "identity-api"],
+      course: [450, 190, "course-api"],
+      work: [450, 300, "work-api"],
+      live: [450, 410, "classroom-live"],
+      tele: [450, 520, "telemetry-api"],
+      idstore: [630, 80, "identity DB\nsigning key", "store"],
+      bus: [630, 300, "Event bus\nRabbitMQ", "bus"],
+      redis: [630, 470, "Redis pub/sub", "store"],
+      mod1: [810, 90, "struggle-detection\nmod", "mod"],
+      mod2: [810, 190, "autograder\nmod", "mod"],
+      wwork: [810, 300, "work worker"],
+      wtele: [810, 520, "telemetry worker"],
+      modstore: [990, 140, "Mods' own stores", "store"],
+      core: [990, 300, "Core MySQL\nschema per service", "store"],
+      ops: [990, 420, "Operations", "store"],
+      trace: [990, 540, "trace\n(research data)", "store"],
+    },
+    zones: [
+      { x: 8, y: 110, w: 164, h: 420, label: "Browsers", tone: "a" },
+      { x: 192, y: 22, w: 156, h: 606, label: "Edge", tone: "b" },
+      { x: 368, y: 22, w: 164, h: 606, label: "Front ends (sync)", tone: "b" },
+      { x: 552, y: 22, w: 156, h: 606, label: "Messaging", tone: "c" },
+      { x: 728, y: 22, w: 164, h: 606, label: "Back ends (async), mods", tone: "c" },
+      { x: 912, y: 22, w: 160, h: 606, label: "Data", tone: "d" },
+    ],
+    edges: [
+      ["sb", "gw"], ["msnap", "gw"], ["tb", "gw"],
+      ["gw", "id"], ["gw", "course"], ["gw", "work"], ["gw", "live"], ["gw", "tele"],
+      ["id", "idstore"], ["work", "bus"], ["course", "bus"], ["tele", "bus"], ["live", "redis"],
+      ["bus", "mod1"], ["bus", "mod2"], ["bus", "wwork"], ["bus", "wtele"], ["bus", "live"],
+      ["mod1", "modstore"], ["mod2", "modstore"], ["wwork", "core"], ["wtele", "trace"], ["wtele", "ops"],
+      ["work", "core"], ["course", "core"], ["tele", "ops"], ["wwork", "ops"],
+    ],
+    via: {
+      "gw>id": [[300, 80]], "gw>course": [[310, 190]], "gw>tele": [[310, 520]],
+      "work>core": [[540, 250], [915, 250]], "course>core": [[540, 236], [915, 236]],
+      "tele>ops": [[540, 590], [915, 590], [990, 590]],
+      "wwork>ops": [[900, 360], [990, 360]],
+    },
+    flows: [
+      { id: "p-signin", title: "Sign in once, checked anywhere",
+        sum: "identity-api is the only service that sees a password. It signs tokens with a private key; every other service checks them with the public key, so no service shares a secret.",
+        steps: [
+          { go: [r(["sb", "gw", "id"])], t: "The sign-in form posts to the gateway, which routes /api/v2/auth to identity-api. The gateway terminates TLS and adds a request id; it decides nothing else.", x: x("Request", "POST /api/v2/auth/login\n{ username, password }") },
+          { go: [r(["id", "idstore"]), s(["idstore", "id"])], t: "identity-api owns accounts, password hashes, Google sign-in and the Snap Cloud bridge, all moved from today's auth and user modules.", x: x("Owned by identity-api", "accounts, password_hash (argon2id)\ngoogle links, snap-cloud bridge\nsigning key (private)") },
+          { work: ["id"], t: "It signs the token with an asymmetric key (ES256) and publishes the public half at a well-known address, as ToyTalk's services verify with a public key.", x: x("Published key", "GET /.well-known/jwks.json\n{ keys: [{ kty: EC, crv: P-256, kid, x, y }] }") },
+          { go: [s(["id", "gw", "sb"])], t: "The token comes back to the page. Today's HS256 shared secret goes away.", x: x("Reply", "200 { token, expiresIn, user }") },
+          { go: [r(["sb", "gw", "work"])], work: ["work"], t: "On the next request, work-api checks the token with the cached public key. It never calls identity-api, and it could not sign a token if it wanted to.", x: x("Every service", "verify(token, jwks[kid])  // no secret held") },
+        ] },
+      { id: "p-save", title: "Save work: answer now, react later",
+        sum: "A save is a short write, so work-api answers at once. What follows the save (media compaction, autograding, analytics) happens after the reply, from events, in workers and mods.",
+        steps: [
+          { go: [r(["sb", "gw", "work"])], t: "The page sends the project to work-api, which validates the body against its published schema and checks the student's enrolment.", x: x("Request", "PUT /api/v2/work/assignments/{a}/submission\n{ xml, level, submitted: false }") },
+          { go: [r(["work", "core"]), s(["core", "work"])], t: "It writes the submission in its own schema of the core database. No other service writes there.", x: x("Owned by work-api", "schema work: submission, backup, snippet, gallery") },
+          { go: [s(["work", "gw", "sb"]), m(["work", "bus"])], t: "It answers 200 straight away, and publishes submission.saved on the bus.", x: x("Event", "submission.saved v1\n{ submissionId, assignmentId, studentId, sectionId, at }") },
+          { go: [m(["bus", "wwork"]), m(["bus", "mod2"])], t: "The work worker and any mod subscribed to the event each get a copy. Neither can slow the student's save down.", x: x("Subscribers", "work-worker: compact media\nautograder mod: run its checks") },
+          { go: [r(["wwork", "core"])], t: "The worker does the media compaction that today runs inside the request.", x: x("Moved off the request", "today: Submission.addSubmission compacts media before replying") },
+          { go: [r(["mod2", "modstore"]), m(["mod2", "bus"])], t: "The autograder mod keeps its results in its own store and publishes grade.suggested. It reads core data only through published APIs and events.", x: x("Event from a mod", "grade.suggested v1 (mod: autograder@0.3)\n{ submissionId, score, feedback }") },
+        ] },
+      { id: "p-log", title: "Log activity: 202 and a worker",
+        sum: "The image builder pattern for the research logs: the front end records the request and answers 202 with where to follow it; a worker does the slow part and marks the operation done.",
+        steps: [
+          { go: [r(["msnap", "gw", "tele"])], t: "Snap's logging script posts a batch to telemetry-api.", x: x("Request", "POST /api/v2/telemetry/batches\n{ userInfo, logs: [...] }") },
+          { go: [r(["tele", "ops"]), m(["tele", "bus"])], t: "telemetry-api validates the batch, records an operation as Accepted and queues the batch. It does not touch the trace table.", x: x("Operation record", "{ id: op-81f2, status: Accepted, kind: telemetry.batch }") },
+          { go: [s(["tele", "gw", "msnap"])], t: "It answers 202 Accepted at once, with the operation's address and how long to wait before asking, as Azure's asynchronous operations do.", x: x("Reply", "202 Accepted\nOperation-Location: /api/v2/operations/op-81f2\nRetry-After: 5") },
+          { go: [m(["bus", "wtele"])], work: ["wtele"], t: "The telemetry worker takes the batch off the queue and compacts its project media.", x: x("Queue", "telemetry.batches (durable, at-least-once)") },
+          { go: [r(["wtele", "trace"])], t: "It inserts the rows into trace with today's columns unchanged, so existing analyses keep working.", x: x("Unchanged", "INSERT INTO trace (message, time, assignmentID, sectionID,\n  userID, projectID, browserID, sessionID, data, code)") },
+          { go: [r(["wtele", "ops"])], t: "It marks the operation Succeeded, or Failed with an error. A client that cares asks the operation; Snap's logger does not need to.", x: x("Operation status", "GET /api/v2/operations/op-81f2\n{ status: Succeeded }  // or Failed, Canceled") },
+        ] },
+      { id: "p-live", title: "Struggle detection as a mod",
+        sum: "Today's struggle detection, rebuilt as the first mod: a Snap-side script and a mod service, talking to the core only through the gateway and the bus. Live state lives in Redis, so any number of classroom-live replicas can serve teachers.",
+        steps: [
+          { work: ["msnap"], t: "The mod's manifest names its Snap script; the core's mod loader adds it to Snap, as snap-patch/struggle-detection is loaded today, but declared rather than patched in.", x: x("mod.yaml", "name: struggle-detection\ncore: \">=2.0 <3\"\nsnap: [ scripts/detector.js ]\nemits: [ struggle.updated ]\nroutes: /mods/struggle-detection/*") },
+          { go: [r(["msnap", "gw", "mod1"])], t: "The script posts snapshots to the mod's own route under /mods/struggle-detection/. The gateway routes it; the mod never sees the core's database.", x: x("Request", "POST /mods/struggle-detection/state\n{ sectionId, studentId, seq, metrics }") },
+          { go: [r(["mod1", "modstore"]), m(["mod1", "bus"])], t: "The mod keeps its history in its own store, which today is lost on restart, and publishes struggle.updated.", x: x("Event from a mod", "struggle.updated v1\n{ sectionId, studentId, level, seq }") },
+          { go: [m(["bus", "live"]), m(["live", "redis"])], t: "classroom-live receives the event and publishes it to the section's Redis channel.", x: x("Channel", "PUBLISH section:{sectionId} {event}") },
+          { go: [st(["redis", "live", "gw", "tb"])], t: "Whichever classroom-live replica holds a teacher's stream for that section passes it on. Today only the one process that received the POST can.", x: x("Teacher stream", "GET /api/v2/live/sections/{s}/stream  (SSE)\nevent: struggle.updated") },
+        ] },
+      { id: "p-help", title: "Help reaches the teacher at once",
+        sum: "A help request becomes an event, so the teacher's page is told instead of asking every three seconds.",
+        steps: [
+          { go: [r(["sb", "gw", "live"])], t: "The student asks for help; classroom-live records the request.", x: x("Request", "POST /api/v2/live/help { assignmentId, code }") },
+          { go: [r(["live", "core"]), s(["live", "gw", "sb"])], t: "It writes the help row and answers 201.", x: x("Reply", "201 { helpId }") },
+          { go: [m(["live", "redis"])], t: "It publishes help.requested to the section's channel.", x: x("Event", "help.requested v1 { helpId, sectionId, studentId }") },
+          { go: [st(["redis", "live", "gw", "tb"])], t: "Teachers' pages already hold the section stream, so the badge updates within a second. The 3000 ms poll and its twenty requests a minute per tab go away.", x: x("Teacher stream", "event: help.requested") },
+        ] },
+      { id: "p-job", title: "A long teacher job",
+        sum: "Exporting a gradebook or regrading a whole section is long work. It follows the image builder shape: submit, get an operation back, a worker runs it, the page polls the operation.",
+        steps: [
+          { go: [r(["tb", "gw", "course"])], t: "The teacher asks for a gradebook export for a section.", x: x("Request", "POST /api/v2/courses/sections/{s}/exports\n{ format: csv }") },
+          { go: [r(["course", "ops"]), m(["course", "bus"]), s(["course", "gw", "tb"])], t: "course-api records the operation, queues the job and answers 202 with the operation's address.", x: x("Reply", "202 Accepted\nOperation-Location: /api/v2/operations/op-4c10\nRetry-After: 10") },
+          { go: [m(["bus", "wwork"])], work: ["wwork"], t: "A worker builds the export from course and work data, which nothing on the request path waits for.", x: x("Queue", "course.exports") },
+          { go: [r(["wwork", "ops"])], t: "When it is done, the worker marks the operation Succeeded with a link to the result.", x: x("Operation status", "{ status: Succeeded, result: /api/v2/files/exp-77.csv }") },
+          { go: [r(["tb", "gw", "course", "ops"]), s(["ops", "course", "gw", "tb"])], t: "The page polls the operation after Retry-After seconds and offers the file once it reads Succeeded.", x: x("Poll", "GET /api/v2/operations/op-4c10 -> 200 { status: Succeeded }") },
+        ] },
+    ],
+  };
+
+  window.SCENES.release = {
+    id: "release",
+    title: "A release: one image, tested in the smoke region before prod",
+    viewBox: "0 0 1000 300",
+    boxW: 150, boxH: 48,
+    pickLabel: "Release path",
+    noCode: "Proposed",
+    nodes: {
+      pr: [90, 150, "Pull request", "client"],
+      ci: [270, 150, "CI: unit, contract,\nbreak tests"],
+      reg: [450, 60, "Image registry\n(tag = commit)", "store"],
+      smoke: [450, 240, "Smoke region\nsynthetic data", "new"],
+      gate: [640, 150, "System test plan\n+ health gate"],
+      prod: [830, 150, "Prod", "store"],
+    },
+    zones: [
+      { x: 10, y: 12, w: 360, h: 276, label: "Every change", tone: "a" },
+      { x: 380, y: 12, w: 340, h: 276, label: "Every release", tone: "b" },
+      { x: 740, y: 12, w: 250, h: 276, label: "After the gate", tone: "d" },
+    ],
+    edges: [["pr", "ci"], ["ci", "reg"], ["reg", "smoke"], ["smoke", "gate"], ["gate", "prod"], ["reg", "prod", true]],
+    via: { "reg>prod": [[830, 60]] },
+    flows: [
+      { id: "ship", title: "Ship a release",
+        sum: "The same images run in Docker Compose on a laptop, in the smoke region and in prod. Only configuration differs.",
+        steps: [
+          { go: [r(["pr", "ci"])], t: "A pull request runs each service's unit tests, contract tests against the published APIs and events, and break tests that prove each test can fail.", x: x("Per service", "npm test  # unit\nnpm run test:contract  # OpenAPI + event schemas\npython3 scripts/break_tests.py  # each test fails when its behaviour breaks") },
+          { go: [r(["ci", "reg"])], t: "A merge builds one image per service, tagged with the commit, and pushes them to the registry.", x: x("Images", "snapclass/work-api:3f2a9c1\nsnapclass/telemetry-worker:3f2a9c1 ...") },
+          { go: [r(["reg", "smoke"])], t: "Those exact images deploy first to the smoke region, a separate namespace or cluster with synthetic classes only, as Azure deploys to a canary region first.", x: x("Deploy", "helm upgrade snapclass charts/snapclass -n smoke \\\n  --set image.tag=3f2a9c1") },
+          { go: [r(["smoke", "gate"])], t: "The system test plan runs there: each request lifecycle in this guide, end to end, plus health and error-rate checks over a soak period.", x: x("Gate", "playwright test e2e/system/  # the six flows\nerror rate < threshold for 30 min") },
+          { go: [r(["gate", "prod"])], t: "Only a commit that passed the gate is promoted to prod, by a person, with the commit recorded. A failure leaves prod on the previous tag.", x: x("Promote", "helm upgrade snapclass ... -n prod --set image.tag=3f2a9c1\n# rollback: helm rollback snapclass -n prod") },
+        ] },
+    ],
+  };
+})();
+
+/* The text-view test case, built twice. modToday: on SnapClass as it is
+   (every changed place checked against the checkout by build.py, modcase.json).
+   modNew: on the proposed architecture (design). Steps that rely on code that
+   already exists show it (c, checked); the rest show their contract (x). */
+window.SCENES = window.SCENES || {};
+(function () {
+  const r = path => ({ path, kind: "req" });
+  const s = path => ({ path, kind: "res" });
+  const m = path => ({ path, kind: "msg" });
+  const x = (h, body) => ({ h, body });
+
+  window.SCENES.modToday = {
+    id: "modToday",
+    title: "The text view built on SnapClass today: every dashed box is a core file the student must change",
+    viewBox: "0 0 1000 620",
+    pickLabel: "The text view on today's SnapClass",
+    nodes: {
+      ng: [90, 110, "Assignment page\n(Angular, 1 component)", "chg"],
+      panel: [90, 230, "text panel\n(added in that page)", "chg"],
+      snap: [90, 360, "Snap IDE\n(iframe)", "client"],
+      patch: [90, 480, "text-view patch\n(added to snap-patch)", "chg"],
+      express: [300, 300, "Express\napp.js"],
+      snaphtml: [300, 470, "snap.html\n(script tags added)", "chg"],
+      wrap: [500, 200, "auth-wrapper\n+ new resource", "chg"],
+      routes: [500, 330, "routes.js\n(mount added)", "chg"],
+      legacy: [700, 200, "text-view route\n+ model (added)", "chg"],
+      schema: [700, 380, "SQL + schema\n+ barrel (added)", "chg"],
+      db: [900, 200, "MySQL\n+ new table", "chg"],
+      ci: [900, 380, "CI: drift and\nlayering checks", "client"],
+      all: [700, 540, "Every class\n(one process)", "store"],
+    },
+    zones: [
+      { x: 8, y: 50, w: 164, h: 492, label: "Student's browser", tone: "a" },
+      { x: 205, y: 50, w: 600, h: 428, label: "One Node process: app.js", tone: "b" },
+      { x: 830, y: 50, w: 165, h: 428, label: "Data and CI", tone: "d" },
+    ],
+    edges: [
+      ["ng", "panel"], ["ng", "snap"], ["snap", "patch"], ["ng", "express"], ["snap", "express"], ["express", "snaphtml"],
+      ["express", "wrap"], ["wrap", "legacy"], ["express", "routes"], ["routes", "legacy"], ["legacy", "db"],
+      ["schema", "db"], ["schema", "ci", true], ["express", "all", true],
+    ],
+    flows: [
+      { id: "t-change", title: "What has to change",
+        sum: "17 places, all in the shared core: 12 existing files edited and 5 new files or folders inside core folders. Each is checked against the code when this page is built.",
+        steps: [
+          { work: ["snaphtml"], t: "Snap loads its patches from 13 script tags hard-coded in snap.html, the page every class loads. The text-view patch needs its own tags here.", c: "snap_tags", hl: [44, 61] },
+          { work: ["patch"], t: "The patch itself goes inside the vendored Snap folder and wraps IDE_Morph methods, the way changesToGui.js does today.", c: "patch_wrap", hl: [100, 104] },
+          { work: ["ng", "panel"], t: "The panel goes into the assignment page's layout, beside #snapframe, in the same component that runs autosave, backups, help and peer review.", c: "sa_frame", hl: [8, 26] },
+          { work: ["ng"], t: "That component reaches into the Snap iframe directly. The text panel has to do the same to read scripts and push edits back.", c: "snap_ready", hl: [2267, 2272] },
+          { work: ["ng"], t: "api.service.ts gets methods for the new calls, beside the help and submission calls.", c: "api_help", hl: [526, 538] },
+          { work: ["routes", "legacy"], t: "The server needs new legacy routes and a model, mounted in routes.js beside every other resource.", c: "mount_struggle", hl: [794, 798] },
+          { work: ["wrap"], t: "The auth-wrapper answers 404 to any /api/v1 path it does not know, so the project also needs a new authorization resource composed before this catch-all.", c: "wrap_catchall", hl: [91, 95] },
+          { work: ["wrap"], t: "Its routes and role requirements are listed in the wrapper's shared constants.", c: "wrap_consts", hl: [107, 107] },
+          { work: ["schema", "db"], t: "Storing preferences or translation logs needs a table: snapclass.sql, update_db.sql, a typed schema file and its export from the barrel.", c: "schema_barrel", hl: [1, 3] },
+          { work: ["ci"], t: "CI checks that the SQL and the typed schema agree, and that each table has one owner, so a table added in one place fails the build.", c: "drift_ci", hl: [61, 66] },
+          { work: ["all"], t: "Shipping it restarts the one process every class uses. A bug in the patch or the page breaks Snap for every course, not only the study's sections.", c: "listen", hl: [171, 173] },
+        ] },
+      { id: "t-view", title: "Blocks to text",
+        sum: "At run time the patch and the panel talk through the page, which already reaches into Snap's window.",
+        steps: [
+          { work: ["snap"], t: "The student drags a block. Snap records the change.", c: "snap_unsaved", hl: [3644, 3647] },
+          { work: ["patch"], t: "The patch wraps that method to hear every edit, as the existing patches wrap others.", c: "patch_wrap", hl: [100, 104] },
+          { work: ["patch", "snap"], t: "It turns each script into text with Snap's own toLisp, and into a Python-like form with mappedCode and a table of code mappings.", c: "snap_mapped", hl: [4952, 4970] },
+          { go: [r(["snap", "ng"])], t: "With no channel between frames, the page reads the text out of the iframe's window, as it reads the project for autosave.", c: "snap_ready", hl: [2267, 2272] },
+          { work: ["panel"], t: "The panel shows the text. All of this runs inside the core page and the core Snap.", c: "sa_frame", hl: [8, 26] },
+        ] },
+      { id: "t-edit", title: "Text back to blocks",
+        sum: "An edit in the panel goes through the shared server path a legacy request takes, then back into Snap.",
+        steps: [
+          { go: [r(["panel", "ng", "express", "wrap"])], t: "The page posts the edited text to the new translate route. The wrapper must know the route, or it answers 404.", c: "wrap_catchall", hl: [92, 94] },
+          { go: [r(["wrap", "legacy", "db"]), s(["db", "legacy", "express", "ng"])], t: "The legacy route translates the text to Snap's syntax and logs it in the new table through the model.", c: "help_model", hl: [40, 55] },
+          { go: [r(["ng", "snap"])], work: ["snap"], t: "The page hands the result to Snap, which builds blocks from text with parseCode.", c: "snap_parse", hl: [5726, 5730] },
+          { work: ["ng"], t: "Autosave then saves the project as Snap XML, as today: grading and research data still see blocks.", c: "autosave", hl: [391, 403] },
+        ] },
+    ],
+  };
+
+  window.SCENES.modNew = {
+    id: "modNew",
+    title: "The text view built as a mod: solid green boxes are core extension points built once; purple boxes are the mod",
+    viewBox: "0 0 1000 620",
+    pickLabel: "The text view as a mod",
+    noCode: "Proposed",
+    nodes: {
+      page: [90, 110, "Assignment page\n(core)", "client"],
+      slot: [90, 230, "panel slot + bridge\n(core, built once)", "new"],
+      panel: [90, 350, "text-view panel\n(mod)", "mod"],
+      snap: [290, 110, "Snap IDE\n(core)", "client"],
+      host: [290, 230, "mod host API\n(core, built once)", "new"],
+      modjs: [290, 350, "text-view script\n(mod)", "mod"],
+      loader: [290, 470, "mod loader\n(core, built once)", "new"],
+      gw: [480, 300, "Gateway\n/mods/* (once)", "new"],
+      registry: [670, 110, "mod registry +\nenablement (once)", "new"],
+      modsvc: [670, 250, "text-view service\n(mod)", "mod"],
+      tele: [670, 390, "telemetry-api\n(mod events, once)", "new"],
+      work: [670, 530, "work-api\n(unchanged)"],
+      smoke: [880, 110, "smoke region:\nmod contract tests", "client"],
+      modstore: [880, 250, "text-view store\n(mod)", "store"],
+      trace: [880, 390, "trace\n(unchanged columns)", "store"],
+      core: [880, 530, "Core MySQL\n(unchanged)", "store"],
+    },
+    zones: [
+      { x: 8, y: 50, w: 384, h: 470, label: "Student's browser", tone: "a" },
+      { x: 410, y: 50, w: 360, h: 540, label: "Core services and mods", tone: "c" },
+      { x: 795, y: 50, w: 200, h: 540, label: "Data and release", tone: "d" },
+    ],
+    edges: [
+      ["page", "slot"], ["slot", "panel"], ["page", "snap"], ["snap", "host"], ["host", "modjs"], ["slot", "host"],
+      ["loader", "modjs"], ["page", "gw"], ["panel", "gw"], ["gw", "registry"], ["gw", "modsvc"], ["gw", "tele"], ["gw", "work"],
+      ["modsvc", "modstore"], ["tele", "trace"], ["work", "core"], ["registry", "smoke", true],
+    ],
+    via: { "slot>host": [[180, 230]], "page>gw": [[200, 60], [480, 60]] },
+    flows: [
+      { id: "n-change", title: "What has to change",
+        sum: "No core file changes for this project. The student writes 6 pieces in the mod's own folder; the core's 7 extension points were built once, before any project, and serve every mod after it.",
+        steps: [
+          { work: ["modjs"], t: "The manifest declares what the mod is and what it needs. Nothing in the core lists it.", x: x("mods/text-view/mod.yaml", "name: text-view\ncore: \">=2.0 <3\"\nhost-api: 1\nsnap: [ snap/text-view.js ]\npanel: panel/index.html\nroutes: /mods/text-view/*\nemits: [ textview.edited ]") },
+          { work: ["modjs"], t: "The Snap-side script uses only the host API, so it never patches Snap and survives a Snap upgrade.", x: x("mods/text-view/snap/text-view.js", "host.onProjectChanged(() => {\n  const scripts = host.getScripts({ as: [\"lisp\", \"python\"] });\n  host.send(\"panel\", { scripts });\n});") },
+          { work: ["panel"], t: "The panel is the mod's own page, shown in the core's slot beside Snap.", x: x("mods/text-view/panel/", "index.html, panel.js: shows the text,\nsends edits with host.send(\"script\", ...)") },
+          { work: ["modsvc", "modstore"], t: "Translation runs in the mod's own container, with its own store for preferences and translation logs.", x: x("mods/text-view/service/", "POST /mods/text-view/translate\n{ python } -> { lisp }   // 200, short work") },
+          { work: ["smoke"], t: "Its contract tests run in the smoke region against the core version it names, on its own releases and on every core release.", x: x("mods/text-view/tests/", "host API v1: getScripts, replaceScript\nround trip: blocks -> python -> blocks") },
+          { work: ["loader", "host", "slot", "registry", "gw", "tele"], t: "The core's part was done before this project: a mod loader, a host API, a panel slot with a bridge, a registry with per-section switches, gateway routes and a telemetry endpoint for mod events. The next mod uses the same seven.", x: x("Core, built once", "mod loader · host API · panel slot · bridge\nregistry + enablement · gateway /mods/* · mod events") },
+        ] },
+      { id: "n-load", title: "Load the mod",
+        sum: "A teacher turns the mod on for one section; only that section's students get it.",
+        steps: [
+          { go: [r(["page", "gw", "registry"]), s(["registry", "gw", "page"])], t: "Opening an assignment, the page asks which mods are on for this section.", x: x("Request", "GET /api/v2/mods/enabled?sectionId=12\n-> [ { name: text-view, version: 0.2.0, panel, snap } ]") },
+          { work: ["loader", "modjs"], t: "The mod loader adds the mod's Snap script by its manifest, with a checksum. It replaces today's hard-coded patch tags.", c: "snap_tags", hl: [44, 61] },
+          { work: ["slot", "panel"], t: "The page puts the mod's panel in the slot beside Snap, in a sandboxed frame." , x: x("Panel slot", "<iframe sandbox=\"allow-scripts\" src=\"/mods/text-view/panel/\">") },
+        ] },
+      { id: "n-view", title: "Blocks to text",
+        sum: "The same Snap functions as today's version, reached through the host API instead of patched in.",
+        steps: [
+          { work: ["snap", "host"], t: "The student drags a block. The host API wraps Snap's change hook once, for every mod.", c: "snap_unsaved", hl: [3644, 3647] },
+          { go: [m(["host", "modjs"])], t: "The mod's script is told the project changed.", x: x("Host API v1", "onProjectChanged(callback)") },
+          { go: [r(["modjs", "host", "snap"]), s(["snap", "host", "modjs"])], t: "It asks the host for the scripts as text; the host calls Snap's toLisp and mappedCode.", c: "snap_tolisp", hl: [4573, 4577] },
+          { go: [m(["modjs", "host", "slot", "panel"])], t: "It sends them through the bridge to its panel, which shows them. No server call.", x: x("Bridge message", "{ mod: text-view, v: 1, type: scripts, scripts: [...] }") },
+        ] },
+      { id: "n-edit", title: "Text back to blocks",
+        sum: "An edit goes to the mod's own service, never to a core route, and comes back as blocks.",
+        steps: [
+          { go: [r(["panel", "gw", "modsvc"])], t: "The panel sends the edited text to its own service.", x: x("Request", "POST /mods/text-view/translate { python }") },
+          { go: [r(["modsvc", "modstore"]), s(["modsvc", "gw", "panel"])], t: "The service translates it to Snap's text syntax and logs it in its own store.", x: x("Reply", "200 { lisp: \"(forward 10)\" }") },
+          { go: [m(["panel", "slot", "host", "snap"])], t: "The panel asks the host to replace the script; the host calls Snap's parseCode.", c: "snap_parse", hl: [5726, 5730] },
+          { go: [r(["page", "gw", "work"]), r(["work", "core"])], t: "Autosave saves Snap XML through work-api, unchanged: teachers and research still see blocks.", x: x("Unchanged", "PUT /api/v2/work/assignments/{a}/submission") },
+        ] },
+      { id: "n-trace", title: "Research trace",
+        sum: "The study's data reaches trace through a core endpoint every mod shares, with trace's columns unchanged.",
+        steps: [
+          { go: [r(["panel", "gw", "tele"])], t: "The panel reports each text edit as a mod event.", x: x("Request", "POST /api/v2/telemetry/events\n{ source: mod:text-view, type: textview.edited, ... }") },
+          { go: [r(["tele", "trace"])], t: "The telemetry worker writes a trace row; the mod's name goes in data, so existing analyses keep working.", x: x("trace row", "message: textview.edited\ndata: { source: \"mod:text-view\", chars: 42 }") },
+        ] },
+    ],
+  };
+})();
+
+/* An LLM tutor mod, built twice (T7). Both scenes are proposed: llmToday puts
+   it beside SnapClass as it is, llmNew on the proposed architecture. Steps
+   that rely on SnapClass code that exists show it (c, checked by build.py);
+   the rest show their contract (x). The tutor's design is copied from
+   ToyTalk's chat service (BotBuilderGame2Learn/toytalk at ba654fd). */
+window.SCENES = window.SCENES || {};
+(function () {
+  const r = path => ({ path, kind: "req" });
+  const s = path => ({ path, kind: "res" });
+  const st = path => ({ path, kind: "stream" });
+  const m = path => ({ path, kind: "msg" });
+  const x = (h, body) => ({ h, body });
+
+  window.SCENES.llmToday = {
+    id: "llmToday",
+    title: "An LLM tutor beside SnapClass today: dashed boxes are core edits, purple boxes are the new tutor container",
+    viewBox: "0 0 1000 620",
+    pickLabel: "The tutor on today's SnapClass",
+    noCode: "Proposed",
+    nodes: {
+      page: [90, 110, "Assignment page\n(chat panel added)", "chg"],
+      panel: [90, 240, "chat panel\n(inside that page)", "chg"],
+      snap: [90, 370, "Snap IDE\n(iframe)", "client"],
+      proxy: [290, 300, "Reverse proxy\n(+ /mods/tutor/ route)", "chg"],
+      express: [480, 130, "Express app.js\n(unchanged)"],
+      snaphtml: [480, 270, "snap.html\n(+ tutor script tag)", "chg"],
+      secret: [480, 410, "HS256 secret\n(now shared)", "chg"],
+      tutor: [690, 200, "tutor-mod\n(ToyTalk chat-service)", "mod"],
+      agent: [690, 340, "agent + provider\nadapter", "mod"],
+      tdb: [690, 480, "tutor store\n(chats, messages)", "store"],
+      llm: [900, 340, "LLM provider\n(Bedrock, OpenAI, vLLM)", "ext"],
+      mysql: [900, 130, "MySQL + trace\n(unchanged)", "store"],
+    },
+    zones: [
+      { x: 8, y: 50, w: 164, h: 400, label: "Student's browser", tone: "a" },
+      { x: 205, y: 50, w: 175, h: 400, label: "Front door", tone: "d" },
+      { x: 395, y: 50, w: 175, h: 430, label: "Node process", tone: "b" },
+      { x: 600, y: 50, w: 180, h: 500, label: "New: tutor container", tone: "c" },
+      { x: 805, y: 50, w: 190, h: 400, label: "Outside", tone: "d" },
+    ],
+    edges: [
+      ["page", "panel"], ["page", "snap"], ["panel", "proxy"], ["page", "proxy"], ["proxy", "express"], ["express", "snaphtml"],
+      ["express", "mysql"], ["express", "secret"], ["proxy", "tutor"], ["tutor", "agent"], ["agent", "llm"], ["tutor", "tdb"],
+      ["secret", "tutor", true],
+    ],
+    via: { "express>mysql": [[700, 80], [900, 80]] },
+    flows: [
+      { id: "l-change", title: "What has to change",
+        sum: "The tutor's server side lives in its own container, so Express does not change. The proxy, the token secret and the browser side still do, because the core has no mod points yet.",
+        steps: [
+          { work: ["tutor", "agent", "tdb"], t: "New: a tutor container copied from ToyTalk's chat service, with its own store for chats and messages. It never reads core tables.", x: x("tutor-mod (from toytalk apps/chat-service)", "POST /snapclass/mods/tutor/chats            -> 201 { chatId }\nPOST /snapclass/mods/tutor/chats/{id}/stream -> application/x-ndjson\nstore: chats, messages (its own schema)") },
+          { work: ["proxy"], t: "New: one route at the proxy that sends /snapclass/mods/tutor/ to the container, unbuffered, as ToyTalk's nginx does for its chat stream. The proxy's configuration is not in the repository.", x: x("proxy route (toytalk nginx.conf 176-191)", "location /snapclass/mods/tutor/ {\n  proxy_pass http://tutor-mod:8003;\n  proxy_buffering off;  proxy_cache off;  gzip off;\n  proxy_read_timeout 300s;\n}") },
+          { work: ["express"], t: "Express binds to 127.0.0.1, so something already sits in front of it. Express itself needs no change: tutor requests never reach it.", c: "listen", hl: [171, 173] },
+          { work: ["secret", "tutor"], t: "Changed: SnapClass signs tokens with HS256 and one shared secret. To check them, the tutor must hold that secret, which also lets it mint tokens for any user.", c: "jwt_verify", hl: [[77, 77], [79, 80]] },
+          { work: ["snaphtml"], t: "Changed: the tutor's Snap-side script needs one more hard-coded tag in snap.html, the page every class loads.", c: "snap_tags", hl: [44, 61] },
+          { work: ["page", "panel"], t: "Changed: the chat panel goes into the assignment page's layout beside Snap, in the shared component.", c: "sa_frame", hl: [8, 26] },
+        ] },
+      { id: "l-turn", title: "One chat turn",
+        sum: "One POST per turn; the answer streams back as lines of JSON and the connection closes when it ends. This is ToyTalk's transport.",
+        steps: [
+          { go: [m(["snap", "page", "panel"])], t: "The panel reads the student's scripts as text out of the Snap frame, the way the page already reaches into it.", c: "snap_ready", hl: [2267, 2272] },
+          { go: [r(["panel", "proxy", "tutor"])], t: "The panel sends the turn with fetch, the token in the Authorization header and the scripts in the body. Not EventSource, so the token stays out of the URL.", x: x("Request", "POST /snapclass/mods/tutor/chats/{id}/stream\nAuthorization: JWT ...\nAccept: application/x-ndjson\n{ content, metadata: { assignmentId, scripts } }") },
+          { go: [r(["tutor", "tdb"])], work: ["tutor"], t: "The tutor checks the token with the shared secret, saves the student's message and loads the chat's history.", x: x("tutor store", "INSERT messages (chat_id, role=user, content)\nSELECT last N messages for chat_id") },
+          { go: [r(["tutor", "agent", "llm"])], t: "The agent calls the provider with streaming on.", x: x("Provider call (toytalk app/agent)", "model.astream(messages, callbacks=[StreamTokenCallbackHandler])") },
+          { go: [st(["llm", "agent", "tutor"])], t: "Each token arrives in a callback and goes onto a queue, as in ToyTalk's streaming.py.", x: x("toytalk app/api/chat/streaming.py", "on_llm_new_token(token) -> emitter.send({ type: stream_delta, content })") },
+          { go: [st(["tutor", "proxy", "panel"])], t: "The response body is that queue, one JSON line per event. The proxy passes each line on at once, because buffering is off.", x: x("Response, application/x-ndjson", "{\"type\":\"stream_start\",\"chat_id\":\"...\"}\n{\"type\":\"stream_delta\",\"content\":\"Try a \"}\n{\"type\":\"stream_delta\",\"content\":\"repeat block\"}\n{\"type\":\"stream_end\"}") },
+          { go: [r(["tutor", "tdb"])], t: "On stream_end the tutor saves the full answer. The connection closes; nothing stays open between turns.", x: x("tutor store", "INSERT messages (chat_id, role=assistant, content, model, tokens)") },
+          { go: [r(["panel", "proxy", "express", "mysql"])], t: "For research, the panel logs the turn through the existing log route, with the mod's name in data, so trace keeps its columns.", c: "store_logs", hl: [[26, 30]] },
+        ] },
+      { id: "l-stop", title: "Stop, and the streams SnapClass has",
+        sum: "Stopping a turn stops the spend. SnapClass's own two streams work differently, and that is what keeps them in one process.",
+        steps: [
+          { work: ["panel"], t: "The student presses Stop or leaves the page; fetch is aborted and the connection closes.", x: x("Browser", "controller.abort()  // fetch(url, { signal: controller.signal })") },
+          { work: ["tutor", "agent"], t: "The tutor sees the disconnect and cancels the provider call, so tokens stop being paid for.", x: x("toytalk drain_emitter", "except CancelledError: task.cancel()  // producer stops") },
+          { work: ["express"], t: "By contrast, SnapClass's code-snippet and struggle streams are Server-Sent Events that stay open, with a heartbeat and no buffering.", c: "snippet_sse", hl: [7, 13] },
+          { work: ["page"], t: "The page opens them with EventSource, which cannot send headers, so the token goes in the URL.", c: "snippet_es", hl: [[4607, 4612], [4625, 4625]] },
+          { work: ["express"], t: "The server accepts that URL token only on these routes. Each open stream is held in a Map in this one process, so these streams cannot move to a second copy of SnapClass as they are.", c: "url_token", hl: [230, 236] },
+        ] },
+    ],
+  };
+
+  window.SCENES.llmNew = {
+    id: "llmNew",
+    title: "The same tutor on the proposed architecture: green boxes are core pieces built once, purple boxes are the mod",
+    viewBox: "0 0 1000 620",
+    pickLabel: "The tutor as a mod",
+    noCode: "Proposed",
+    nodes: {
+      page: [90, 110, "Assignment page\n(core)", "client"],
+      slot: [90, 240, "panel slot + bridge\n(core, once)", "new"],
+      panel: [90, 370, "tutor panel\n(mod)", "mod"],
+      snap: [290, 110, "Snap IDE\n(core)", "client"],
+      host: [290, 240, "mod host API\n(core, once)", "new"],
+      loader: [290, 370, "mod loader\n(core, once)", "new"],
+      gw: [490, 300, "Gateway: /mods/*\n(streams, once)", "new"],
+      identity: [490, 110, "identity-api\n(ES256, JWKS)", "new"],
+      registry: [490, 490, "registry +\nenablement, quotas", "new"],
+      tutor: [700, 200, "tutor service\n(mod, n replicas)", "mod"],
+      tdb: [700, 340, "tutor store\n(mod)", "store"],
+      tele: [700, 490, "telemetry-api\n(mod events, once)", "new"],
+      llm: [900, 200, "LLM provider", "ext"],
+      keys: [900, 340, "provider key\n(mod's secret only)", "store"],
+      trace: [900, 490, "trace\n(unchanged columns)", "store"],
+    },
+    zones: [
+      { x: 8, y: 50, w: 384, h: 400, label: "Student's browser", tone: "a" },
+      { x: 410, y: 50, w: 175, h: 520, label: "Core", tone: "b" },
+      { x: 610, y: 50, w: 180, h: 520, label: "Mods", tone: "c" },
+      { x: 815, y: 50, w: 180, h: 520, label: "Outside and data", tone: "d" },
+    ],
+    edges: [
+      ["page", "slot"], ["slot", "panel"], ["page", "snap"], ["snap", "host"], ["slot", "host"], ["loader", "panel"],
+      ["page", "gw"], ["panel", "gw"], ["gw", "identity"], ["gw", "registry"], ["gw", "tutor"], ["gw", "tele"],
+      ["tutor", "tdb"], ["tutor", "llm"], ["tutor", "keys", true], ["tele", "trace"], ["tutor", "tele"],
+    ],
+    via: { "page>gw": [[200, 60], [490, 60], [490, 110]] },
+    flows: [
+      { id: "m-change", title: "What has to change",
+        sum: "No core file changes for the tutor. It is a manifest, a panel and a service; the core pieces it uses are built once and shared by every mod.",
+        steps: [
+          { work: ["panel", "tutor"], t: "The manifest declares the panel, the streaming route, the events it emits and the one secret it needs.", x: x("mods/tutor/mod.yaml", "name: tutor\ncore: \">=2.0 <3\"\npanel: panel/index.html\nroutes: [ { path: /mods/tutor/*, stream: ndjson } ]\nemits: [ tutor.turn ]\nsecrets: [ provider-key ]\ndata: scripts-of-current-assignment") },
+          { work: ["tutor", "tdb"], t: "The service is ToyTalk's chat service with its own store, run as several replicas.", x: x("mods/tutor/service/", "POST /mods/tutor/chats/{id}/stream -> application/x-ndjson\nstream_start | stream_delta | stream_end | error") },
+          { work: ["identity"], t: "Core, once: tokens are signed with a private key and checked with the published public keys, so the tutor can verify them but cannot mint them.", x: x("identity-api", "GET /.well-known/jwks.json\naccess token: ES256, aud: snapclass, sub, roles, sectionIds") },
+          { work: ["gw"], t: "Core, once: the gateway passes streamed replies through unbuffered for any route a manifest marks as a stream.", x: x("Gateway rule", "stream: ndjson -> no buffering, no compression, read timeout 300 s") },
+          { work: ["registry"], t: "Core, once: the registry holds per-section switches and per-student turn limits, so cost is capped in one place.", x: x("registry", "tutor: on for section 12; 40 turns / student / day") },
+          { work: ["loader", "slot", "host"], t: "Core, once: the loader, panel slot and host API that the text-view mod also uses. The tutor adds nothing to them.", x: x("Shared with every mod", "mod loader · panel slot + bridge · host API v1") },
+        ] },
+      { id: "m-turn", title: "One chat turn",
+        sum: "The same transport as today's version. The gateway checks who and whether; the core never waits on the model.",
+        steps: [
+          { go: [r(["panel", "slot", "host", "snap"]), s(["snap", "host", "slot", "panel"])], t: "The panel asks the host API for the scripts as text; the host calls Snap's toLisp.", c: "snap_tolisp", hl: [4573, 4577] },
+          { go: [r(["panel", "gw"])], t: "The panel posts the turn to the gateway, token in the header.", x: x("Request", "POST /mods/tutor/chats/{id}/stream\nAuthorization: Bearer <ES256 token>\n{ content, metadata: { assignmentId, scripts } }") },
+          { go: [r(["gw", "identity"]), r(["gw", "registry"])], t: "The gateway checks the token against cached public keys, then that the tutor is on for the student's section and under its limit.", x: x("Gateway checks", "JWKS (cached) -> sub 481, section 12\nregistry: tutor on, 7 of 40 turns used") },
+          { go: [r(["gw", "tutor"])], t: "It forwards the turn to any tutor replica with the verified user and section; history is in the store, so no replica is special.", x: x("Forwarded", "X-User: 481   X-Section: 12   X-Mod: tutor") },
+          { go: [r(["tutor", "tdb"]), r(["tutor", "llm"])], t: "The tutor saves the message, loads history and calls the provider with its own key.", x: x("tutor", "INSERT messages ...\nmodel.astream(...)") },
+          { go: [st(["llm", "tutor"]), st(["tutor", "gw", "panel"])], t: "Tokens stream back as JSON lines through the gateway to the panel. Core services are not on this path.", x: x("Response, application/x-ndjson", "{\"type\":\"stream_delta\",\"content\":\"...\"}") },
+          { go: [m(["tutor", "tele"]), r(["tele", "trace"])], t: "At stream_end the tutor emits a mod event; telemetry writes a trace row with the mod in data, de-identified as the IRB answer requires.", x: x("Mod event", "{ source: mod:tutor, type: tutor.turn, chars_in, chars_out, model }") },
+        ] },
+      { id: "m-fail", title: "When the provider is slow or down",
+        sum: "A failing tutor affects only the tutor's panel.",
+        steps: [
+          { go: [st(["tutor", "gw", "panel"])], t: "A provider error ends the stream with an error line; the panel shows it and offers a retry.", x: x("Last line", "{\"type\":\"error\",\"message\":\"The tutor is unavailable.\"}") },
+          { work: ["page", "snap"], t: "Snap, autosave and help keep working: they never go through the tutor.", x: x("Unaffected", "work-api, classroom-live-api, Snap") },
+          { work: ["registry"], t: "A teacher or the maintainer can switch the tutor off for a section without a release.", x: x("registry", "tutor: off for section 12") },
+        ] },
+    ],
+  };
+})();
+
+/* SnapClass Next, measured (T19, tab 7): how the watersim, shellview and tutor mods work,
+   step by step, each step tied to the snapclass-next code that does it (c, checked by
+   build.py against ../snapclass-next). */
+window.SCENES = window.SCENES || {};
+(function () {
+  const r = path => ({ path, kind: "req" });
+  const s = path => ({ path, kind: "res" });
+  const st = path => ({ path, kind: "stream" });
+  const m = path => ({ path, kind: "msg" });
+
+  const browser = { x: 8, y: 50, w: 345, h: 560, label: "Student's browser", tone: "a" };
+
+  window.SCENES.nextWater = {
+    id: "nextWater",
+    title: "The watersim mod in SnapClass Next: the browser on the left, the core in the middle, the mod and research events on the right",
+    viewBox: "0 0 1000 620",
+    pickLabel: "Water and pipes",
+    nodes: {
+      snap: [95, 130, "Snap IDE\n(Water blocks)", "client"],
+      host: [95, 290, "host API\n(Snap's frame)", "client"],
+      page: [95, 450, "assignment page\nloader + bridge", "client"],
+      panel: [265, 560, "watersim panel\n(sandboxed)", "mod"],
+      gateway: [445, 290, "gateway\n(the one door)"],
+      registry: [445, 470, "registry-api"],
+      watersim: [655, 210, "watersim service", "mod"],
+      world: [655, 400, "worlds in memory\n(20 steps a second)", "mod"],
+      rabbit: [880, 210, "RabbitMQ", "store"],
+      telemetry: [880, 400, "telemetry\n→ trace", "store"],
+    },
+    zones: [browser, { x: 370, y: 50, w: 160, h: 560, label: "Core", tone: "b" }, { x: 560, y: 50, w: 200, h: 560, label: "The mod", tone: "c" }, { x: 785, y: 50, w: 200, h: 560, label: "Research events", tone: "d" }],
+    edges: [["snap", "host"], ["host", "page"], ["page", "panel"], ["page", "gateway"], ["gateway", "registry"], ["gateway", "watersim"], ["watersim", "world"], ["watersim", "rabbit"], ["rabbit", "telemetry"], ["gateway", "telemetry"]],
+    via: { "gateway>telemetry": [[540, 560], [880, 560]] },
+    flows: [
+      { id: "w-place", title: "Placing Water blocks",
+        sum: "Before any block is placed, the page loads watersim's Snap script, checks it, and installs it; the script adds the Water palette. Placing a block makes no network call: Snap's own hooks log it for research and for mods that listen.",
+        steps: [
+          { go: [r(["page", "gateway", "registry"])], t: "When the assignment opens, the page asks registry which mods are on for its section.", c: "n_enabled", hl: [32, 32] },
+          { go: [r(["page", "gateway", "watersim"]), s(["watersim", "gateway", "page"])], t: "The loader fetches watersim's Snap script and checks its sha256 against the manifest the admin approved; a script that does not match never runs.", c: "n_verify", hl: [[12, 12], [15, 16]] },
+          { go: [m(["page", "host"])], work: ["page"], t: "Checked, the script is installed into Snap's frame, once per page, with the student's assignment, section and role.", c: "n_install_call", hl: [57, 57] },
+          { work: ["host"], t: "The host API runs the script with a host object bound to watersim, so it cannot speak as another mod.", c: "n_install", hl: [250, 254] },
+          { work: ["host", "snap"], t: "The script calls defineBlocks (the Water palette and its blocks) and registerPrimitive for the primitives those blocks call.", c: "n_define", hl: [[213, 216], [218, 220]] },
+          { work: ["snap"], t: "Each Water command is a custom block: its primitive, then wait until ws_idle, then ws_check, so the block waits for its answer and shows any error.", c: "n_wait", hl: [11, 13] },
+          { work: ["snap"], t: "The student drags close valve V1 from the Water palette. Snap copies the template and the core's activity hook logs Block.created; dropping it logs Block.snapped. Still no network call.", c: "n_activity", hl: [16, 18] },
+          { go: [m(["snap", "host"])], t: "Trace hands each event to mods that asked for activity (struggle detection, the shell view, the tutor), just after the action that logged it, so a dropped block is already in its script (B-47).", c: "n_trace", hl: [[17, 26]] },
+          { go: [m(["snap", "host", "page"]), r(["page", "gateway", "telemetry"])], t: "Every 2 s the frame passes the batch to the page, which sends it to telemetry-api (202 at once); the worker writes it to trace.", c: "n_trace_post", hl: [31, 34] },
+        ] },
+      { id: "w-click", title: "Clicking a Water block",
+        sum: "A click runs the block's primitive in Snap, which asks the page; the page's bridge is the only thing that talks to the network. The gateway checks the token and asks registry whether the mod is on, then forwards to watersim, which changes the student's world.",
+        steps: [
+          { work: ["snap"], t: "The student clicks close valve V1. Snap runs the definition, which calls the primitive ws_valve(id, open).", c: "n_valve_prim", hl: [146, 146] },
+          { work: ["snap"], t: "The primitive queues a command: commands run in order, and the block waits until this one is answered.", c: "n_command", hl: [[90, 94]] },
+          { go: [m(["snap", "host", "page"])], t: "host.call posts the request to the page, naming only a path; the mod cannot pick another prefix.", c: "n_host_call", hl: [222, 226] },
+          { work: ["page"], t: "The page checks which mod sent the message, then hands it to the bridge.", c: "n_relay", hl: [[95, 96]] },
+          { go: [r(["page", "gateway"])], t: "The bridge sends POST /mods/watersim/api/valve with the student's token, and gives up after 10 s.", c: "n_bridge_call", hl: [[41, 47]] },
+          { go: [r(["gateway", "registry"]), s(["registry", "gateway"])], work: ["gateway"], t: "The gateway checks the token (public keys, ES256) and asks registry whether watersim is on for this student, and in which of their sections.", c: "n_gw_mod", hl: [166, 169] },
+          { work: ["registry"], t: "registry answers from its own tables: the mod enabled there, and the approved version installed.", c: "n_reg_check", hl: [[298, 307]] },
+          { go: [r(["gateway", "watersim"])], t: "The gateway forwards with X-User-Id and X-Mod-Sections, after removing any X-User or X-Mod header the browser sent.", c: "n_forward", hl: [15, 16] },
+          { work: ["watersim", "world"], t: "watersim closes V1 in this student's world and answers with the world as it is now.", c: "n_ws_valve", hl: [[71, 76]] },
+          { go: [m(["watersim", "rabbit", "telemetry"])], t: "It also publishes a watersim.command event; the telemetry worker writes it to trace with the columns unchanged.", c: "n_emit", hl: [47, 49] },
+          { go: [s(["watersim", "gateway", "page"]), m(["page", "host", "snap"])], t: "The answer comes back the same way. The queue empties, ws_idle is true, and ws_check raises any error on the block itself.", c: "n_idle", hl: [167, 170] },
+        ] },
+      { id: "w-stream", title: "The simulation, streamed",
+        sum: "watersim steps every open world 20 times a second and streams each student's world as lines of JSON. The page keeps one connection per mod and path, shared by the panel and the Snap script, and the gateway passes each line on at once.",
+        steps: [
+          { work: ["world"], t: "Every 50 ms watersim steps every open world.", c: "n_ticker", hl: [31, 38] },
+          { work: ["world"], t: "One step: water levels out between neighbours, running pumps push it, closed valves block it.", c: "n_step", hl: [[83, 87]] },
+          { go: [m(["panel", "page"])], t: "The panel, in a sandboxed frame, asks the page for stream?a=<the assignment>.", c: "n_panel_follow", hl: [13, 13] },
+          { work: ["page"], t: "The page subscribes through the bridge. The Snap script's subscription to the same path shares the connection: one stream per mod per page (bug T10).", c: "n_bridge_sub", hl: [[63, 69]] },
+          { go: [r(["page", "gateway", "watersim"])], t: "One fetch for the stream. The gateway forwards it unbuffered and re-checks every 15 s that the mod is still on.", c: "n_gw_mod", hl: [174, 174] },
+          { go: [st(["watersim", "gateway", "page"])], t: "watersim writes the student's world as one JSON line every 100 ms until the browser goes away.", c: "n_ws_stream", hl: [[90, 96]] },
+          { work: ["page"], t: "The bridge splits the body into lines and hands each to every listener.", c: "n_bridge_read", hl: [88, 99] },
+          { go: [m(["page", "panel"])], t: "The panel draws each frame: the pieces, the water in each, the tick.", c: "n_panel_draw", hl: [25, 25] },
+          { go: [m(["page", "host", "snap"])], t: "The Snap script keeps the newest frame, so water level in T1 answers at once, with no request.", c: "n_ws_level", hl: [[159, 162]] },
+        ] },
+    ],
+  };
+
+  window.SCENES.nextShell = {
+    id: "nextShell",
+    title: "The shell view in SnapClass Next: blocks to Python or bash, live",
+    viewBox: "0 0 1000 560",
+    pickLabel: "Shell view",
+    nodes: {
+      snap: [95, 120, "Snap IDE", "client"],
+      host: [95, 270, "host API v1.2\n(Snap's frame)", "client"],
+      page: [95, 420, "assignment page\nbridge", "client"],
+      panel: [265, 500, "shell view panel\n(sandboxed)", "mod"],
+      gateway: [470, 270, "gateway"],
+      registry: [470, 440, "registry-api"],
+      shellview: [760, 270, "shellview service\n(stateless, 2 copies)", "mod"],
+    },
+    zones: [{ x: 8, y: 50, w: 345, h: 500, label: "Student's browser", tone: "a" }, { x: 385, y: 50, w: 170, h: 500, label: "Core", tone: "b" }, { x: 640, y: 50, w: 250, h: 500, label: "The mod", tone: "c" }],
+    edges: [["snap", "host"], ["host", "page"], ["page", "panel"], ["page", "gateway"], ["gateway", "registry"], ["gateway", "shellview"]],
+    flows: [
+      { id: "s-edit", title: "Your blocks as Python",
+        sum: "The shell view's Snap script hears each edit, reads the scripts as plain trees through host API v1.2 (the only core change it needed), and sends them to its panel; the panel asks the stateless service to translate.",
+        steps: [
+          { work: ["snap"], t: "The student drops or edits a block; Snap's hooks log it.", c: "n_activity", hl: [16, 18] },
+          { go: [m(["snap", "host"])], t: "shellview's Snap script hears it through host.onActivity and waits for 400 ms of quiet, so a drag is one update, not twenty.", c: "n_sv_activity", hl: [15, 18] },
+          { work: ["host"], t: "host.scripts() turns the sprite's scripts into plain trees, with each script's place in the scripting area.", c: "n_scripts", hl: [112, 120] },
+          { work: ["host"], t: "A block becomes { s, kind, spec, label, in, next }; a C-slot becomes { body }. No mod reads Snap's morphs, so a Snap upgrade changes one core file.", c: "n_blocktree", hl: [103, 111] },
+          { go: [m(["host", "page", "panel"])], t: "host.send passes the trees to the page, which relays them to the mod's own panel.", c: "n_send_relay", hl: [108, 108] },
+          { go: [r(["panel", "page", "gateway"])], t: "The panel asks for a translation through the bridge (one request at a time; a newer edit waits its turn).", c: "n_sv_call", hl: [[40, 46]] },
+          { go: [r(["gateway", "registry"]), s(["registry", "gateway"])], t: "The same door as every mod call: the token, then registry, is the shell view on for this student?", c: "n_gw_mod", hl: [166, 169] },
+          { go: [r(["gateway", "shellview"])], t: "The service checks the language and the size of the trees. It keeps nothing, so on Kubernetes either copy can answer.", c: "n_sv_route", hl: [34, 41] },
+          { work: ["shellview"], t: "Scripts are read top to bottom; a hat block becomes a decorated function in Python or a function in bash; a block it cannot express becomes a comment.", c: "n_sv_translate", hl: [[288, 293]] },
+          { go: [s(["shellview", "gateway", "page", "panel"])], t: "The panel paints the code with line numbers and the time of the update.", c: "n_sv_result", hl: [[58, 64]] },
+        ] },
+      { id: "s-down", title: "When its service is down",
+        sum: "A mod failing never stops the student: the panel says so, Snap carries on, and the panel tries again by itself.",
+        steps: [
+          { go: [r(["panel", "page", "gateway", "shellview"])], t: "The panel asks for a translation; the shellview container is stopped.", c: "n_sv_call", hl: [[44, 45]] },
+          { go: [s(["gateway", "page", "panel"])], t: "The gateway cannot reach it and answers 503 itself (logged as the gateway's own failure).", c: "n_forward", hl: [[26, 29]] },
+          { work: ["panel"], t: "The panel says Translation is unavailable right now. Snap, saving and the other mods are untouched (rule R6).", c: "n_sv_down", hl: [48, 52] },
+          { work: ["panel"], t: "Every 15 s it tries again, and is live again once the service is back.", c: "n_sv_retry", hl: [86, 86] },
+        ] },
+    ],
+  };
+
+  window.SCENES.nextTutor = {
+    id: "nextTutor",
+    title: "The AI tutor in SnapClass Next: one question, with the mods it depends on",
+    viewBox: "0 0 1000 640",
+    pickLabel: "AI tutor (one turn)",
+    nodes: {
+      page: [95, 260, "assignment page\nbridge", "client"],
+      panel: [95, 430, "tutor panel\n(sandboxed)", "mod"],
+      gateway: [330, 180, "gateway :8080\n(browser door)"],
+      gwi: [330, 380, "gateway :8081\n(mod calls, E10)"],
+      registry: [330, 560, "registry-api"],
+      tutor: [570, 260, "tutor service\n(2 copies)", "mod"],
+      store: [570, 430, "tutor database\n(turns, briefs)", "store"],
+      watersim: [790, 120, "watersim", "mod"],
+      shellview: [790, 250, "shellview", "mod"],
+      guard: [790, 400, "answer guard", "mod"],
+      llm: [790, 560, "Claude (or any\nplugged-in model)", "ext"],
+    },
+    zones: [{ x: 8, y: 50, w: 180, h: 560, label: "Browser", tone: "a" }, { x: 240, y: 50, w: 180, h: 570, label: "Core", tone: "b" }, { x: 470, y: 50, w: 200, h: 470, label: "The tutor", tone: "c" }, { x: 695, y: 50, w: 200, h: 420, label: "Mods it requires", tone: "c" }, { x: 695, y: 500, w: 200, h: 110, label: "Outside", tone: "d" }],
+    edges: [["page", "panel"], ["page", "gateway"], ["gateway", "tutor"], ["tutor", "store"], ["tutor", "gwi"], ["gwi", "registry"], ["gwi", "watersim"], ["gwi", "shellview"], ["gwi", "guard"], ["tutor", "llm"]],
+    via: { "gwi>watersim": [[420, 120]], "gwi>shellview": [[440, 250]], "gwi>guard": [[460, 400]] },
+    flows: [
+      { id: "t-turn", title: "One question, streamed",
+        sum: "A turn is a fast POST (202) and a stream, as ToyTalk does it. The tutor asks the mods it depends on through the gateway's internal listener (E10); every sentence passes the answer guard before the student sees it.",
+        steps: [
+          { go: [m(["panel", "page"]), r(["page", "gateway", "tutor"])], t: "The student asks. The panel POSTs the turn: the chosen model, the question and the scripts. Not the conversation: the tutor keeps its own (B-46).", c: "n_tp_post", hl: [67, 67] },
+          { go: [r(["tutor", "store"])], t: "The tutor checks the section, the model and the hourly limit (paid models only), reads the conversation so far from its own turns, writes the turn and answers 202 at once.", c: "n_t_post", hl: [[51, 58]] },
+          { go: [m(["panel", "page"]), r(["page", "gateway", "tutor"])], t: "The panel subscribes to the turn's stream.", c: "n_tp_post", hl: [71, 71] },
+          { go: [r(["tutor", "store"])], t: "The stream reads the turn from the database, so either copy serves it; closing the stream cancels the model call.", c: "n_t_stream", hl: [[62, 65], [84, 84]] },
+          { go: [r(["tutor", "gwi", "registry"]), s(["registry", "gwi"])], t: "To see the simulation, the tutor calls watersim through the internal listener with its own key; registry confirms the tutor requires watersim and watersim exports GET /state.", c: "n_calls_check", hl: [[311, 319]] },
+          { go: [r(["gwi", "watersim"]), s(["watersim", "gwi", "tutor"]), r(["tutor", "gwi", "shellview"]), s(["shellview", "gwi", "tutor"])], t: "The gateway forwards with the student's identity and the caller's name; the same for the scripts as Python from shellview.", c: "n_gw_internal", hl: [[51, 72]] },
+          { work: ["tutor"], t: "The live level and the scripts go into the student's message; the tutoring policy and the assignment's brief into the system prompt.", c: "n_t_e10", hl: [[87, 96]] },
+          { go: [r(["tutor", "llm"])], t: "The chosen provider streams the reply: Claude through the official SDK (refusal fallbacks on Opus and Sonnet), or any OpenAI-compatible endpoint, or the offline tutor.", c: "n_t_provider", hl: [[37, 41]] },
+          { go: [st(["llm", "tutor"])], t: "Text arrives in pieces; the tutor collects whole sentences.", c: "n_t_release", hl: [[120, 122]] },
+          { go: [r(["tutor", "gwi", "guard"]), s(["guard", "gwi", "tutor"])], t: "Each sentence goes to the answer guard first. If the guard cannot answer, the turn stops: no unchecked text.", c: "n_t_release", hl: [[107, 111]] },
+          { work: ["guard"], t: "The guard holds a sentence that contains a protected phrase or enough of its terms, and logs it for the teacher.", c: "n_rule", hl: [[26, 32]] },
+          { go: [st(["tutor", "gateway", "page"]), m(["page", "panel"])], t: "Passed sentences stream to the panel as delta lines; a held one arrives as a notice, never as its text.", c: "n_tp_delta", hl: [[83, 84]] },
+          { work: ["panel"], t: "Switching model mid-answer closes this stream (the tutor stops the provider) and asks the same question with the new model.", c: "n_tp_switch", hl: [[102, 106]] },
+        ] },
+    ],
+  };
+})();
+
+/* The dev-team deck (T33). nextRelease is MEASURED: each step names the line of
+   snapclass-next/scripts/release-k8s.sh that does it (c, checked by build.py).
+   teamFlow is PROPOSED: how the team would work in the repositories; each step
+   shows its contract (x), not code. It builds on the branch rules SnapClass
+   already has (BRANCHING.md: feature branches, pull requests, one review,
+   required checks). */
+window.SCENES = window.SCENES || {};
+(function () {
+  const r = path => ({ path, kind: "req" });
+  const s = path => ({ path, kind: "res" });
+  const m = path => ({ path, kind: "msg" });
+  const x = (h, body) => ({ h, body });
+
+  window.SCENES.nextRelease = {
+    id: "nextRelease",
+    title: "One command releases SnapClass Next: build, smoke, tests, the reliability gate, then prod",
+    viewBox: "0 0 1000 420",
+    boxW: 150, boxH: 52,
+    pickLabel: "Release",
+    nodes: {
+      dev: [90, 110, "one command\nrelease-k8s.sh", "client"],
+      build: [90, 300, "images built\ntag = commit"],
+      smoke: [330, 110, "smoke namespace\n:8093", "new"],
+      watch: [330, 300, "health watcher\n:8088"],
+      tests: [560, 110, "system test plan\n18 plans"],
+      gate: [560, 300, "reliability gate\n998/1,000"],
+      prod: [820, 110, "prod namespace\n:8092", "store"],
+      stop: [820, 300, "release stopped\nprod untouched", "ext"],
+    },
+    zones: [
+      { x: 8, y: 40, w: 175, h: 340, label: "Laptop", tone: "a" },
+      { x: 220, y: 40, w: 460, h: 340, label: "Smoke: synthetic classes", tone: "b" },
+      { x: 720, y: 40, w: 200, h: 340, label: "Prod", tone: "d" },
+    ],
+    edges: [["dev", "build"], ["build", "smoke"], ["smoke", "watch"], ["smoke", "tests"], ["tests", "gate"], ["gate", "prod"], ["gate", "stop"]],
+    flows: [
+      { id: "rel-ok", title: "A release that passes",
+        sum: "The images are built once and tagged with the commit. The same tag goes to smoke, is tested there, and only then goes to prod.",
+        steps: [
+          { work: ["dev"], t: "A developer runs one command. The release is named after the commit it was built from.", c: "n_rel", hl: [8, 8] },
+          { go: [r(["dev", "build"])], t: "Every service's image is built once, tagged with that commit.", c: "n_rel", hl: [[10, 11]] },
+          { go: [r(["build", "smoke"])], t: "The cluster gets the images, and the smoke namespace is updated to that tag. Smoke has the same services and settings as prod, with synthetic classes only.", c: "n_rel", hl: [[12, 16]] },
+          { go: [r(["smoke", "watch"])], t: "The health watcher starts. Some system tests break a service on purpose and check that the watcher notices.", c: "n_rel", hl: [[17, 18]] },
+          { go: [r(["smoke", "tests"]), s(["tests", "smoke"])], t: "Every system test plan runs in a real browser against smoke. One failure stops the release.", c: "n_rel", hl: [[19, 20]] },
+          { go: [r(["tests", "gate"])], t: "The reliability gate repeats the main student and teacher requests; each must succeed at least 998 times in 1,000.", c: "n_rel", hl: [[21, 22]] },
+          { go: [r(["gate", "prod"])], t: "Only then does prod get the same tag. Nothing is rebuilt, so prod runs exactly what was tested.", c: "n_rel", hl: [[23, 26]] },
+        ] },
+      { id: "rel-stop", title: "A release that stops",
+        sum: "This happened to the release of the request logs (SECOND-ORDER R3.41): with the laptop under heavy load, sign-in passed 991 times in 1,000 on smoke. The release stopped and prod kept the previous version. The same command passed next time.",
+        steps: [
+          { go: [r(["dev", "build", "smoke"])], t: "Built, tagged and sent to smoke as before.", c: "n_rel", hl: [[10, 16]] },
+          { go: [r(["smoke", "tests"]), s(["tests", "smoke"])], t: "The system test plans pass.", c: "n_rel", hl: [[19, 20]] },
+          { go: [r(["tests", "gate"])], t: "The reliability gate finds a request below 998 in 1,000.", c: "n_rel", hl: [21, 21] },
+          { go: [r(["gate", "stop"])], t: "The script stops and says so. The prod step never runs; students keep the version they had.", c: "n_rel", hl: [22, 22] },
+          { work: ["dev"], t: "Nobody fixes prod by hand. The cause is found, and the same one command is run again.", c: "n_rel", hl: [8, 8] },
+        ] },
+    ],
+  };
+
+  window.SCENES.teamFlow = {
+    id: "teamFlow",
+    title: "From a feature spec to students: branches, pull requests and who reviews what",
+    viewBox: "0 0 1000 440",
+    boxW: 150, boxH: 52,
+    pickLabel: "Change",
+    noCode: "Proposed",
+    nodes: {
+      spec: [90, 110, "feature spec\nmilestones", "client"],
+      branch: [90, 300, "feature branch\none per feature", "client"],
+      pr: [320, 110, "pull request\none per milestone"],
+      ci: [320, 300, "required checks\nlint, types, tests"],
+      core: [560, 110, "core team review\nfor core paths", "new"],
+      modrev: [560, 300, "mod team review\nfor its own mod", "mod"],
+      main: [800, 110, "main\nthen one-touch release", "store"],
+      reg: [800, 300, "registry\nadmin approves version", "store"],
+    },
+    zones: [
+      { x: 8, y: 40, w: 175, h: 360, label: "Plan", tone: "a" },
+      { x: 225, y: 40, w: 440, h: 360, label: "Review", tone: "b" },
+      { x: 705, y: 40, w: 200, h: 360, label: "Ship", tone: "d" },
+    ],
+    edges: [["spec", "branch"], ["branch", "pr"], ["pr", "ci"], ["pr", "core"], ["pr", "modrev"], ["core", "main"], ["modrev", "reg"]],
+    flows: [
+      { id: "f-core", title: "A change to the core",
+        sum: "Only the core team merges changes to the core. Each milestone of a feature spec is one pull request, and each commit in it is one change a reviewer can read on its own.",
+        steps: [
+          { work: ["spec"], t: "The feature spec splits the work into milestones. Each milestone can be reviewed and shipped on its own.", x: x("Spec", "Feature: help requests reach the teacher\n  M1 POST /help answers 202; event help.requested\n  M2 teacher queue in the section page\n  M3 system test plan STP-19 and its break tests") },
+          { go: [r(["spec", "branch"])], t: "One branch per feature, from the latest main.", x: x("Branch", "git fetch origin\ngit switch -c feat/help-requests origin/main") },
+          { work: ["branch"], t: "Each commit is one logical change with its tests, so a reviewer can read the pull request one commit at a time.", x: x("Commits", "course: help_requests table and migration\ncourse: POST /help answers 202 and publishes help.requested\ncourse: unit tests U-course-14, U-course-15") },
+          { go: [r(["branch", "pr"])], t: "When a milestone is done, it becomes one pull request, which names the spec and the milestone.", x: x("Pull request", "Help requests M1: the request and its event\nSpec: docs/specs/help.md, milestone M1\nTests: U-course-14, U-course-15; break B77") },
+          { go: [r(["pr", "ci"]), s(["ci", "pr"])], t: "The required checks run on every push: lint, type check, unit and contract tests, and the break tests that touch the changed files.", x: x("Checks", "Lint Changed Files\nType check\nUnit and contract tests\nBreak tests") },
+          { go: [r(["pr", "core"]), s(["core", "pr"])], t: "Files under the core's paths need an approving review from the core team. GitHub enforces this with a CODEOWNERS file and the branch ruleset.", x: x("CODEOWNERS", "/services/   @snapclass/core\n/packages/   @snapclass/core\n/web/        @snapclass/core\n/deploy/     @snapclass/core") },
+          { go: [r(["core", "main"])], t: "Merged into main. The one-touch release takes it to smoke, then to prod.", x: x("Release", "scripts/release-k8s.sh  # smoke, tests, gate, prod") },
+        ] },
+      { id: "f-mod", title: "A new mod",
+        sum: "A research team writes a mod in its own repository and never changes the core. It reaches students when an admin approves its version and a teacher turns it on for a section.",
+        steps: [
+          { work: ["spec"], t: "The study's spec names what the mod needs from the core: its extension points and host API version.", x: x("mod.json", "\"hostApi\": 1.2,\n\"panel\": { \"page\": \"static/panel/index.html\" },\n\"emits\": [ \"shellview.viewed\" ]") },
+          { go: [r(["spec", "branch"])], t: "Branches and commits work as for the core, in the mod's own repository.", x: x("Branch", "git switch -c feat/hint-panel origin/main") },
+          { go: [r(["branch", "pr"]), r(["pr", "ci"]), s(["ci", "pr"])], t: "The mod's checks run its own tests, plus contract tests against the published host API and gateway routes.", x: x("Checks", "Mod unit tests\nContract: manifest, host API, events") },
+          { go: [r(["pr", "modrev"]), s(["modrev", "pr"])], t: "The mod's own team reviews and merges it. The core team is not needed, because no core file changes.", x: x("Review", "1 approving review from the mod's team") },
+          { go: [m(["modrev", "reg"])], t: "A tagged version is installed from its manifest. An admin approves that version, and a teacher turns it on for chosen sections.", x: x("Registry", "install shellview 0.2.0\napprove shellview 0.2.0   (admin)\nenable for CSC 110-001  (teacher)") },
+        ] },
+    ],
+  };
+})();
+
+</script>
+<script>
+(function () {
+  "use strict";
+  const CODE = JSON.parse(document.getElementById("code-data").textContent);
+  const scenes = [["fx-current", "current"], ["fx-modtoday", "modToday"], ["fx-nextwater", "nextWater"], ["fx-nextshell", "nextShell"], ["fx-nextrelease", "nextRelease"], ["fx-teamflow", "teamFlow"]];
+  const players = scenes.map(([el, id]) => FlowScene(document.getElementById(el), window.SCENES[id], CODE));
+
+  const slides = [...document.querySelectorAll("#webslides > section")];
+  const count = document.getElementById("p-count");
+  let cur = 0;
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => s.classList.toggle("cur", k === cur));
+    players.forEach(p => p.stop());
+    count.textContent = (cur + 1) + " / " + slides.length;
+    if (location.hash !== "#slide-" + (cur + 1)) history.replaceState(null, "", "#slide-" + (cur + 1));
+    scrollTo(0, 0);
+  }
+  document.querySelectorAll(".go").forEach(b => b.addEventListener("click", () => show(+b.dataset.to - 1)));
+  document.getElementById("p-prev").addEventListener("click", () => show(cur - 1));
+  document.getElementById("p-next").addEventListener("click", () => show(cur + 1));
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("textarea,input,select")) return;
+    const inViz = e.target.closest(".fx");
+    if ((e.key === "ArrowRight" && !inViz) || e.key === "PageDown") { e.preventDefault(); show(cur + 1); }
+    if ((e.key === "ArrowLeft" && !inViz) || e.key === "PageUp") { e.preventDefault(); show(cur - 1); }
+  });
+  let tx = null;
+  document.addEventListener("touchstart", e => { tx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", e => {
+    if (tx === null || e.target.closest(".fx, .wrap, pre")) { tx = null; return; }
+    const dx = e.changedTouches[0].clientX - tx; tx = null;
+    if (Math.abs(dx) > 60) show(cur + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+  const m = /^#slide-(\d+)$/.exec(location.hash);
+  show(m ? +m[1] - 1 : 0);
+
+  // Comments: only where claude.ai offers them; on any other host the buttons stay hidden.
+  let comments = null;
+  document.body.classList.add("no-comments");
+  if (window.claude && window.claude.use) {
+    window.claude.use("comments").then(c => {
+      if (!c) return;
+      comments = c;
+      document.body.classList.remove("no-comments");
+    }, () => {});
+  }
+  function compose(el) {
+    if (!comments) return;
+    comments.openComposer({ element: el }).catch(err => {
+      if (err && err.code === "unavailable") document.body.classList.add("no-comments");
+    });
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest(".cbtn");
+    if (b) compose(b.closest(".cm"));
+  });
+  document.getElementById("c-slide").addEventListener("click", () => compose(slides[cur]));
+})();
+</script>
+</body>
+</html>
